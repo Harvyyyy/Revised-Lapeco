@@ -8,9 +8,11 @@ import ViewReasonModal from '../../modals/ViewReasonModal';
 import Layout from '@/layout/Layout';
 import { leaveAPI } from '@/services/api';
 
-const LeaveManagementPage = (props) => {
+const LeaveManagementPage = () => {
   const [loading, setLoading] = useState(true);
-  const [serverRequests, setServerRequests] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [error, setError] = useState(null);
+  
   useEffect(() => {
     (async () => {
       try {
@@ -30,16 +32,18 @@ const LeaveManagementPage = (props) => {
           status: l.status,
           reason: l.reason,
         }));
-        setServerRequests(mapped);
-      } catch {
-        setServerRequests([]);
+        setLeaveRequests(mapped);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching leaves:', err);
+        setLeaveRequests([]);
+        setError('Failed to load leave requests. Please try again.');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const leaveRequests = useMemo(() => (Array.isArray(props.leaveRequests) ? props.leaveRequests : serverRequests), [props.leaveRequests, serverRequests]);
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Pending');
@@ -121,7 +125,31 @@ const LeaveManagementPage = (props) => {
   };
 
   const handleSaveStatus = (leaveId) => {
-    props.handlers.updateLeaveStatus(leaveId, tempStatus);
+    // Update leave status via API
+    (async () => {
+      try {
+        await leaveAPI.update(leaveId, { status: tempStatus });
+        // Refresh the data
+        const res = await leaveAPI.getAll();
+        const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        const mapped = data.map(l => ({
+          leaveId: l.id,
+          empId: l.user?.id ?? l.user_id,
+          name: l.user?.name ?? '',
+          position: l.user?.position?.name ?? '',
+          leaveType: l.type,
+          dateFrom: l.date_from,
+          dateTo: l.date_to,
+          days: l.days,
+          status: l.status,
+          reason: l.reason,
+        }));
+        setLeaveRequests(mapped);
+      } catch (err) {
+        console.error('Error updating leave status:', err);
+        alert('Failed to update leave status. Please try again.');
+      }
+    })();
     setEditingLeaveId(null);
     setTempStatus('');
   };
@@ -202,6 +230,30 @@ const LeaveManagementPage = (props) => {
     setPdfDataUri(doc.output('datauristring'));
     setShowReportModal(true);
   };
+
+  if (loading) {
+    return (
+      <div className="container-fluid p-0 page-module-container">
+        <div className="text-center p-5 bg-light rounded">
+          <div className="spinner-border text-success" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 mb-0">Loading leave requests...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container-fluid p-0 page-module-container">
+        <div className="text-center p-5 bg-light rounded">
+          <p className="text-danger">{error}</p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid p-0 page-module-container">

@@ -117,6 +117,21 @@ class DatabaseSeeder extends Seeder
         });
 
         // Seed 15 real PH holidays (sample/common list for current year)
+        
+        // Seed some leave requests
+        \App\Models\Leave::factory()->create([
+            'user_id' => \App\Models\User::where('email', 'packer@example.com')->first()->id,
+            'type' => 'Sick Leave',
+            'date_from' => date('Y-m-d', strtotime('2025-03-15')),
+            'date_to' => date('Y-m-d', strtotime('2025-03-17')),
+            'days' => 3,
+            'status' => 'Approved',
+            'reason' => 'Medical appointment and recovery',
+        ]);
+        
+        // Create additional random leave requests
+        \App\Models\Leave::factory(15)->create();
+
         $year = (int) date('Y');
         $phHolidays = [
             ['New Year\'s Day', "$year-01-01", 'REGULAR'],

@@ -1,16 +1,88 @@
 import React, { useState, useMemo } from 'react';
+import { leaveAPI } from '../../services/api';
 import RequestLeaveModal from '../../modals/RequestLeaveModal';
 import LeaveHistoryModal from '../../modals/LeaveHistoryModal';
 import LeaveRequestCard from './LeaveRequestCard';
 import './MyLeavePage.css'; 
 
-const MyLeavePage = ({ leaveRequests, createLeaveRequest }) => {
+const MyLeavePage = () => {
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All');
   
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   
   const leaveBalances = { vacation: 12, sick: 8 };
+
+  // Load user's leave requests from API
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await leaveAPI.getAll();
+        const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        // Map API to UI structure
+        const mapped = data.map(l => ({
+          leaveId: l.id,
+          empId: l.user?.id ?? l.user_id,
+          name: l.user?.name ?? '',
+          position: l.user?.position?.name ?? '',
+          leaveType: l.type,
+          dateFrom: l.date_from,
+          dateTo: l.date_to,
+          days: l.days,
+          status: l.status,
+          reason: l.reason,
+        }));
+        setLeaveRequests(mapped);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching leaves:', err);
+        setLeaveRequests([]);
+        setError('Failed to load leave requests. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const createLeaveRequest = async (formData) => {
+    try {
+      const payload = {
+        type: formData.leaveType,
+        date_from: formData.dateFrom,
+        date_to: formData.dateTo,
+        days: formData.days,
+        reason: formData.reason,
+      };
+      
+      await leaveAPI.create(payload);
+      
+      // Refresh the data
+      const res = await leaveAPI.getAll();
+      const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const mapped = data.map(l => ({
+        leaveId: l.id,
+        empId: l.user?.id ?? l.user_id,
+        name: l.user?.name ?? '',
+        position: l.user?.position?.name ?? '',
+        leaveType: l.type,
+        dateFrom: l.date_from,
+        dateTo: l.date_to,
+        days: l.days,
+        status: l.status,
+        reason: l.reason,
+      }));
+      setLeaveRequests(mapped);
+      setShowRequestModal(false);
+      alert('Leave request submitted successfully!');
+    } catch (err) {
+      console.error('Error creating leave request:', err);
+      alert('Failed to submit leave request. Please try again.');
+    }
+  };
 
   const upcomingLeave = useMemo(() => {
     const today = new Date();
@@ -27,6 +99,30 @@ const MyLeavePage = ({ leaveRequests, createLeaveRequest }) => {
     return sortedRequests.filter(req => req.status === statusFilter);
   }, [leaveRequests, statusFilter]);
   
+  if (loading) {
+    return (
+      <div className="container-fluid p-0 page-module-container">
+        <div className="text-center p-5 bg-light rounded">
+          <div className="spinner-border text-success" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 mb-0">Loading your leave requests...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container-fluid p-0 page-module-container">
+        <div className="text-center p-5 bg-light rounded">
+          <p className="text-danger">{error}</p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container-fluid p-0 page-module-container">
       <header className="page-header d-flex justify-content-between align-items-center mb-4">
