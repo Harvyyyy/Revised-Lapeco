@@ -1,14 +1,61 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar } from 'react-chartjs-2';
+import { useState, useEffect } from 'react';
+import { employeeAPI, positionAPI, leaveAPI, holidayAPI } from '../../services/api';
 
-const HRDashboard = ({ 
-  employees = [], 
-  positions = [], 
-  leaveRequests = [], 
-  jobOpenings = [], 
-  holidays = [] 
-}) => {
+const HRDashboard = () => {
+  const [employees, setEmployees] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const [empRes, posRes, leaveRes, holidayRes] = await Promise.all([
+          employeeAPI.getAll(),
+          positionAPI.getAll(),
+          leaveAPI.getAll(),
+          holidayAPI.getAll(),
+        ]);
+        
+        const empData = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.data || []);
+        setEmployees(empData);
+        
+        const posData = Array.isArray(posRes.data) ? posRes.data : (posRes.data?.data || []);
+        setPositions(posData);
+        
+        const leaveData = Array.isArray(leaveRes.data) ? leaveRes.data : (leaveRes.data?.data || []);
+        const mappedLeaves = leaveData.map(l => ({
+          leaveId: l.id,
+          empId: l.user?.id ?? l.user_id,
+          name: l.user?.name ?? '',
+          status: l.status,
+          dateFrom: l.date_from,
+          dateTo: l.date_to,
+          type: l.type,
+        }));
+        setLeaveRequests(mappedLeaves);
+        
+        const holidayData = Array.isArray(holidayRes.data) ? holidayRes.data : (holidayRes.data?.data || []);
+        const mappedHolidays = holidayData.map(h => ({
+          id: h.id,
+          name: h.title,
+          date: h.date,
+          type: h.type,
+        }));
+        setHolidays(mappedHolidays);
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -19,19 +66,20 @@ const HRDashboard = ({
       return startDate <= today && today <= endDate;
     }).length;
 
+    const jobOpenings = []; // Mock data for now
     return {
       totalEmployees: employees.length,
       onLeaveToday: onLeaveToday,
       pendingLeaves: leaveRequests.filter(req => req.status === 'Pending').length,
       openPositions: jobOpenings.filter(job => job.status === 'Open').length,
     };
-  }, [employees, leaveRequests, jobOpenings]);
+  }, [employees, leaveRequests]);
 
   const chartData = useMemo(() => {
-    const positionMap = new Map(positions.map(p => [p.id, p.title]));
+    const positionMap = new Map(positions.map(p => [p.id, p.title || p.name]));
     const counts = positions.reduce((acc, pos) => ({ ...acc, [pos.title]: 0 }), {});
     employees.forEach(emp => {
-      const positionTitle = positionMap.get(emp.positionId);
+      const positionTitle = positionMap.get(emp.position_id || emp.positionId);
       if (positionTitle && counts.hasOwnProperty(positionTitle)) {
         counts[positionTitle]++;
       }
@@ -58,6 +106,17 @@ const HRDashboard = ({
   }, [holidays]);
   
   const pendingLeaveRequests = useMemo(() => leaveRequests.filter(r => r.status === 'Pending').slice(0, 5), [leaveRequests]);
+
+  if (loading) {
+    return (
+      <div className="text-center p-5">
+        <div className="spinner-border text-success" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-grid">
@@ -87,7 +146,7 @@ const HRDashboard = ({
         <div className="card-body">
           <ul className="dashboard-list-group">
             {pendingLeaveRequests.length > 0 ? pendingLeaveRequests.map(req => (
-              <li key={req.leaveId}><span>{req.name}</span> <span className="text-muted">{req.leaveType}</span></li>
+              <li key={req.leaveId}><span>{req.name}</span> <span className="text-muted">{req.type}</span></li>
             )) : <li className="text-muted">No pending requests.</li>}
           </ul>
         </div>

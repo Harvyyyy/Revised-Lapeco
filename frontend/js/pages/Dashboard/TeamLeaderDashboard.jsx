@@ -1,16 +1,51 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { employeeAPI, leaveAPI } from '../../services/api';
 import placeholderAvatar from '../../assets/placeholder-profile.jpg';
 
-const TeamLeaderDashboard = ({ 
-  currentUser = { name: 'User', employeeId: '' }, 
-  employees = [], 
-  leaveRequests = [] 
-}) => {
+const TeamLeaderDashboard = () => {
+  const [employees, setEmployees] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
+  })();
+  const currentUser = storedUser || { name: 'User', id: '' };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const [empRes, leaveRes] = await Promise.all([
+          employeeAPI.getAll(),
+          leaveAPI.getAll(),
+        ]);
+        
+        const empData = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.data || []);
+        setEmployees(empData);
+        
+        const leaveData = Array.isArray(leaveRes.data) ? leaveRes.data : (leaveRes.data?.data || []);
+        const mappedLeaves = leaveData.map(l => ({
+          leaveId: l.id,
+          empId: l.user?.id ?? l.user_id,
+          name: l.user?.name ?? '',
+          status: l.status,
+          type: l.type,
+        }));
+        setLeaveRequests(mappedLeaves);
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const myTeam = useMemo(() => {
-    if (currentUser.employeeId === 'EMP002') {
-      return employees.filter(e => ['EMP001', 'EMP004'].includes(e.id));
+    if (currentUser.id === 2) { // Team leader ID
+      return employees.filter(e => [1, 4].includes(e.id)); // Team member IDs
     }
     return [];
   }, [currentUser, employees]);
@@ -19,6 +54,17 @@ const TeamLeaderDashboard = ({
       const teamIds = new Set(myTeam.map(e => e.id));
       return leaveRequests.filter(r => r.status === 'Pending' && teamIds.has(r.empId));
   }, [myTeam, leaveRequests]);
+
+  if (loading) {
+    return (
+      <div className="text-center p-5">
+        <div className="spinner-border text-success" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-grid">
@@ -49,7 +95,7 @@ const TeamLeaderDashboard = ({
         <div className="card-body">
             <ul className="dashboard-list-group">
                 {pendingApprovals.length > 0 ? pendingApprovals.map(req => (
-                    <li key={req.leaveId}><span>{req.name}</span> <span className="text-muted">{req.leaveType}</span></li>
+                    <li key={req.leaveId}><span>{req.name}</span> <span className="text-muted">{req.type}</span></li>
                 )) : <li className="text-muted">No pending approvals.</li>}
             </ul>
         </div>

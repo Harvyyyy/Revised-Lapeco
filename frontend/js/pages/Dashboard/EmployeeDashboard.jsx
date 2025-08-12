@@ -1,18 +1,46 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { holidayAPI } from '../../services/api';
 import './Dashboard.css';
 
 
-const EmployeeDashboard = ({ 
-  currentUser = { name: 'Employee', employeeId: '' }, 
-  schedules = [], 
-  holidays = [] 
-}) => {
+const EmployeeDashboard = () => {
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
+  })();
+  const currentUser = storedUser || { name: 'Employee', id: '' };
+  
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const holidayRes = await holidayAPI.getAll();
+        const holidayData = Array.isArray(holidayRes.data) ? holidayRes.data : (holidayRes.data?.data || []);
+        const mappedHolidays = holidayData.map(h => ({
+          id: h.id,
+          name: h.title,
+          date: h.date,
+          type: h.type,
+        }));
+        setHolidays(mappedHolidays);
+      } catch (err) {
+        console.error('Error loading holidays:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+  
   const leaveBalances = { vl: 12, sl: 8 };
 
   const today = new Date().toISOString().split('T')[0];
   
-  const myScheduleToday = schedules.find(s => s.empId === currentUser.employeeId && s.date === today);
+  // Mock schedule data for now
+  const myScheduleToday = null;
 
   const upcomingHolidays = useMemo(() => {
     return holidays
@@ -20,6 +48,17 @@ const EmployeeDashboard = ({
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 3);
   }, [holidays, today]);
+
+  if (loading) {
+    return (
+      <div className="text-center p-5">
+        <div className="spinner-border text-success" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-grid">
