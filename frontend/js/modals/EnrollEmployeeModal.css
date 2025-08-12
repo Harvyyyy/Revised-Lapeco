@@ -1,0 +1,9 @@
+.employee-enroll-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+.employee-enroll-list .list-group-item {
+    padding: 0.5rem 1rem;
+}

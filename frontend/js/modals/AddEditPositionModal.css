@@ -1,0 +1,22 @@
+.position-form-modal .form-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--secondary-color);
+}
+
+.position-form-modal .form-control,
+.position-form-modal .form-select {
+    font-size: 0.95rem;
+}
+
+.position-form-modal .input-group-text {
+    background-color: var(--light-gray);
+    border-right: none;
+    color: var(--secondary-color);
+    font-weight: 500;
+}
+
+.position-form-modal .form-control:focus {
+    border-color: var(--app-success-color);
+    box-shadow: var(--input-focus-shadow);
+}

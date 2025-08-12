@@ -1,0 +1,81 @@
+.payroll-adjustment-modal-dialog.modal-lg {
+  max-width: 900px;
+}
+.payroll-adjustment-modal-content .modal-header {
+  background-color: var(--light-gray);
+  flex-shrink: 0;
+}
+.payroll-adjustment-modal-content .modal-title .employee-name {
+  font-weight: 600;
+}
+.payroll-adjustment-modal-content .modal-title .period-text {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--secondary-color);
+  margin-left: 0.5rem;
+}
+
+.payroll-adjustment-modal-content .modal-body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  max-height: 65vh;
+}
+.payroll-adjustment-modal-content .modal-footer {
+    flex-shrink: 0; 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+.modal-footer .footer-actions-right {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.payroll-header-bar {
+  display: flex;
+  justify-content: space-around;
+  background-color: var(--light-gray);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.75rem;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+.header-bar-item .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--secondary-color);
+  font-weight: 500;
+}
+.header-bar-item .value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.nav-tabs .nav-link { font-weight: 500; color: var(--secondary-color); }
+.nav-tabs .nav-link.active { color: var(--app-success-color); border-color: var(--border-color) var(--border-color) #fff; }
+.tab-content { padding: 1.5rem 0.5rem; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 2rem;
+}
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-size: 0.85rem; font-weight: 500; color: var(--dark-gray); margin-bottom: 0.25rem; }
+.form-group .form-control, .form-group .form-control-plaintext { font-size: 0.9rem; text-align: right; }
+.form-group .form-control-plaintext { padding-right: 0.75rem; border: 1px solid transparent; }
+
+.summary-section { padding: 1rem 1.5rem; background-color: var(--light-gray); border-radius: var(--border-radius); max-width: 450px; margin: 0 auto; }
+.summary-row { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 0; font-size: 1rem; }
+.summary-row .label { font-weight: 500; color: var(--secondary-color); }
+.summary-row .value { font-weight: 600; }
+.summary-row.total-deductions .value { color: var(--danger-color); }
+.summary-row.net-pay { font-size: 1.3rem; font-weight: bold; border-top: 2px solid var(--border-color); margin-top: 0.5rem; }
+.net-pay .label { color: var(--dark-gray); }
+.net-pay .value { color: var(--app-success-color); }
+
+.modal-behind {
+  visibility: hidden;
+}

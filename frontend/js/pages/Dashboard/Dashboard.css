@@ -1,0 +1,181 @@
+/* --- Main Dashboard Layout --- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .dashboard-grid-span-4 {
+    grid-column: span 4;
+  }
+  .dashboard-grid-span-2 {
+    grid-column: span 2;
+  }
+  
+  /* --- Welcome Header (Employee/Leader) --- */
+  .welcome-header {
+    background: linear-gradient(135deg, var(--app-success-color) 0%, #126b41 100%);
+    color: #fff;
+    padding: 2rem;
+    border-radius: var(--border-radius);
+  }
+  .welcome-header h2 { font-weight: 700; }
+  .welcome-header p { font-size: 1.1rem; opacity: 0.9; margin: 0; }
+  
+  /* --- Stat Cards --- */
+  .dashboard-stats-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .dashboard-stat-card {
+    display: flex;
+    align-items: center;
+    background-color: #fff;
+    padding: 1.25rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--card-shadow);
+    gap: 1rem;
+  }
+  .dashboard-stat-card .stat-icon {
+    font-size: 1.75rem;
+    padding: 0.85rem;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .stat-icon.icon-employees { background-color: #0d6efd; }
+  .stat-icon.icon-on-leave { background-color: #fd7e14; }
+  .stat-icon.icon-pending { background-color: #ffc107; }
+  .stat-icon.icon-open-positions { background-color: #6f42c1; }
+  .stat-icon.icon-vl { background-color: #0dcaf0; }
+  .stat-icon.icon-sl { background-color: #d63384; }
+  
+  .dashboard-stat-card .stat-info .stat-value { font-size: 2rem; font-weight: 700; line-height: 1.2; }
+  .dashboard-stat-card .stat-info .stat-label { font-size: 0.9rem; color: var(--secondary-color); }
+  
+  /* --- Generic Dashboard Card --- */
+  .dashboard-card {
+    background-color: #fff;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-card .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); }
+  .dashboard-card .card-header h6 { font-weight: 600; font-size: 1rem; margin: 0; }
+  .dashboard-card .card-body { padding: 1.25rem; flex-grow: 1; }
+  .dashboard-card .card-footer { background-color: var(--light-gray); padding: 0.75rem 1.25rem; text-align: right; }
+  .dashboard-card .card-footer a { font-weight: 500; font-size: 0.9rem; }
+  
+  /* --- Dashboard List Group --- */
+  .dashboard-list-group {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .dashboard-list-group li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+  }
+  .dashboard-list-group li:last-child { border-bottom: none; }
+  .dashboard-list-group li .text-muted { font-size: 0.85rem; }
+  
+  /* --- Team Leader Specific --- */
+  .team-member-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .team-member-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .team-member-item img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .team-member-item span { font-weight: 500; }
+  
+  .my-status-card .card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .my-status-card .status-icon {
+    font-size: 3rem;
+    color: var(--app-success-color);
+    margin-bottom: 0.5rem;
+  }
+  .my-status-card .status-icon.bi-calendar-x {
+    color: var(--secondary-color);
+  }
+  .my-status-card .status-text {
+    font-weight: 600;
+    font-size: 1.2rem;
+  }
+  .my-status-card .status-detail {
+    font-size: 1rem;
+    color: var(--secondary-color);
+    font-weight: 500;
+  }
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .action-card-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    background-color: var(--light-gray);
+    border: 1px solid var(--medium-gray);
+    border-radius: var(--border-radius);
+    text-decoration: none;
+    color: var(--dark-gray);
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+  }
+  .action-card-link:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+    color: var(--app-success-color);
+    border-color: var(--app-success-color);
+  }
+  .action-card-link i { font-size: 2rem; }
+  
+  @media (max-width: 992px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .dashboard-grid-span-4 {
+      grid-column: span 2;
+    }
+    .dashboard-grid-span-2 {
+      grid-column: span 2;
+    }
+  }
+  @media (max-width: 576px) {
+      .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+    .dashboard-grid-span-4, .dashboard-grid-span-2 {
+      grid-column: span 1;
+    }
+  }

@@ -1,0 +1,91 @@
+.projection-summary-card {
+    background: linear-gradient(135deg, var(--app-success-color) 0%, #1a744a 100%);
+    color: white;
+    padding: 1rem 1.25rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+.projection-summary-card .summary-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+.projection-summary-card .summary-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.projection-summary-card .summary-period {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+.breakdown-table-container {
+    max-height: 45vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+.breakdown-table-container .table-sm th {
+    font-size: 0.8rem;
+    padding: 0.6rem;
+}
+.breakdown-table-container .table-sm td {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+}
+
+.my-payroll-accordion .accordion-item {
+    background-color: var(--white-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius) !important;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--card-shadow);
+}
+.my-payroll-accordion .accordion-button {
+    font-weight: 500;
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+}
+.my-payroll-accordion .accordion-button:not(.collapsed) {
+    color: var(--app-success-color);
+    background-color: rgba(var(--app-success-rgb), 0.05);
+    box-shadow: inset 0 -1px 0 var(--border-color);
+}
+.my-payroll-accordion .accordion-button .period-info .period-date {
+    font-size: 1rem;
+    font-weight: 600;
+    display: block;
+    color: var(--dark-gray);
+    margin-bottom: 0;
+}
+.my-payroll-accordion .accordion-button .period-info .period-status {
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+    font-weight: 500;
+}
+.my-payroll-accordion .accordion-button .period-summary {
+    text-align: right;
+    flex-shrink: 0;
+    padding-left: 1rem;
+}
+.my-payroll-accordion .accordion-button .period-summary .summary-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--secondary-color);
+    display: block;
+    margin-bottom: 0;
+}
+.my-payroll-accordion .accordion-button .period-summary .summary-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--app-success-color);
+}
+
+.my-payroll-accordion .accordion-body {
+    background-color: #f8f9fa;
+    padding: 1.25rem;
+}

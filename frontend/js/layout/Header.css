@@ -1,0 +1,217 @@
+.app-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: calc(100% - var(--sidebar-width));
+  z-index: 1020;
+  transition: width 0.3s ease-in-out;
+  
+  background: linear-gradient(135deg, var(--app-success-color) 0%, #1a744a 100%);
+  color: #ffffff;
+  min-height: var(--app-header-height, 60px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem;
+}
+
+.content-wrapper.sidebar-collapsed .app-header {
+    width: calc(100% - var(--sidebar-width-collapsed));
+}
+
+.header-left {
+  flex-grow: 1;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notification-btn {
+  color: #ffffff !important;
+  text-decoration: none;
+  opacity: 0.9;
+  transition: opacity 0.2s ease-in-out;
+}
+.notification-btn:hover {
+  opacity: 1;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 4px;
+  right: -2px;
+  transform: none;
+  background-color: var(--danger-color);
+  color: white;
+  border-radius: 50%;
+  padding: 0.1em 0.45em;
+  font-size: 0.7rem;
+  font-weight: bold;
+  border: 2px solid white;
+  line-height: 1;
+}
+
+.user-profile-menu .user-info-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+.user-profile-menu .user-info-wrapper:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  margin-right: 0.75rem;
+}
+
+.user-text-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.user-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.user-position {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+.dropdown-caret {
+  font-size: 0.8rem;
+  margin-left: 0.75rem;
+  opacity: 0.7;
+}
+
+.dropdown-menu {
+  font-size: 0.9rem;
+  border-color: var(--border-color, #dee2e6);
+  box-shadow: var(--card-shadow, 0 0.25rem 0.75rem rgba(0,0,0,0.07));
+  min-width: 240px;
+}
+.dropdown-header-custom {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.dropdown-item {
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+}
+.dropdown-item:active {
+  background-color: var(--app-success-color);
+}
+.dropdown-item i {
+  font-size: 1rem;
+  color: var(--secondary-color);
+}
+.dropdown-item.text-danger i {
+  color: var(--danger-color);
+}
+
+.notification-dropdown-pane {
+  width: 360px;
+  
+  padding: 0;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.15);
+}
+
+.notification-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.notification-dropdown-header h6 {
+  font-weight: 600;
+}
+
+.notification-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.notification-item.unread {
+  background-color: rgba(var(--app-success-rgb), 0.07);
+}
+
+.notification-item .notification-link {
+  display: flex;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+  transition: background-color 0.2s ease-in-out;
+}
+.notification-item .notification-link:hover {
+  background-color: var(--light-gray);
+}
+
+.notification-item:last-child .notification-link {
+  border-bottom: none;
+}
+
+.notification-icon {
+  font-size: 1.25rem;
+}
+
+.notification-content .notification-message {
+  font-size: 0.85rem;
+  color: var(--text-color);
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+}
+
+.notification-content .notification-timestamp {
+  font-size: 0.75rem;
+  color: var(--secondary-color);
+}
+
+.unread-dot {
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background-color: var(--app-success-color);
+  border-radius: 50%;
+}
+
+.notification-empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--secondary-color);
+}
+.notification-empty-state i {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.notification-dropdown-footer {
+  padding: 0.5rem;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--light-gray);
+}

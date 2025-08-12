@@ -1,0 +1,41 @@
+.program-detail-header {
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.program-detail-header .page-subtitle {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--secondary-color);
+}
+.program-detail-header .program-meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+}
+.program-detail-header .meta-item {
+    font-weight: 500;
+}
+.program-detail-header .meta-item i {
+    margin-right: 0.5rem;
+    color: var(--secondary-color);
+}
+
+/* === NEW: Styles for table controls === */
+.enrollment-table-controls {
+    padding: 0.75rem 1rem;
+    background-color: var(--light-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.enrollment-table-controls .input-group {
+    max-width: 320px;
+}
+
+/* --- Progress Bar Styles --- */
+.progress-bar-cell { display: flex; align-items: center; gap: 0.75rem; }
+.progress-bar-container { flex-grow: 1; background-color: var(--medium-gray); border-radius: 10px; height: 12px; overflow: hidden; }
+.progress-bar-fill { background-color: var(--app-success-color); height: 100%; border-radius: 10px; transition: width 0.3s ease-in-out; }
+.progress-text { font-size: 0.8rem; font-weight: 500; min-width: 40px; text-align: right; }
