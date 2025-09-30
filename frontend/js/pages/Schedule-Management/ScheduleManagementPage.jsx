@@ -735,7 +735,19 @@ const ScheduleManagementPage = (props) => {
                         <div className="card-body">
                             <dl className="mb-0">
                                 <div className="template-info-section"><dt>Description</dt><dd>{tpl.description || 'No description provided'}</dd></div>
+                                <div className="template-info-section">
+                                    <dt>Template Columns</dt>
+                                    <dd>
+                                        <div className="d-flex flex-wrap gap-1">
+                                            {(tpl.columns || []).map(key => (
+                                                <span key={key} className="badge bg-secondary" style={{fontSize: '0.75rem'}}>
+                                                    {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </dd>
                                 <div className="template-info-section"><dt>Assigned Employees</dt><dd>{tpl.assignments?.length || 0} employees</dd></div>
+                                </div>
                             </dl>
                         </div>
                         <div className="card-footer">

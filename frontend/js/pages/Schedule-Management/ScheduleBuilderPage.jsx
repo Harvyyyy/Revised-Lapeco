@@ -202,12 +202,13 @@ const ScheduleBuilderPage = (props) => {
   }, []);
 
   useEffect(() => {
-    if (!initialDate || loading) {
+    const currentDate = scheduleDate || initialDate;
+    if (!currentDate || loading) {
       return;
     }
 
     let initialGrid = [];
-    let initialName = `Schedule for ${initialDate}`;
+    let initialName = `Schedule for ${currentDate}`;
     let initialColumns = [
       { key: 'start_time', name: 'Start Time' },
       { key: 'end_time', name: 'End Time' },
@@ -232,14 +233,42 @@ const ScheduleBuilderPage = (props) => {
         return row;
       });
     } else if (method === 'template' && sourceData) {
-      initialName = `${sourceData.name} for ${initialDate}`;
+      initialName = `${sourceData.name} for ${currentDate}`;
       const templateColumnKeys = sourceData.columns && sourceData.columns.length > 0 ? sourceData.columns : ['start_time', 'end_time'];
-      initialColumns = templateColumnKeys.map(key => ({
+      
+      // If template has assignments, ensure we include notes column
+      const allColumnKeys = sourceData.assignments && sourceData.assignments.length > 0 
+        ? [...new Set([...templateColumnKeys, 'notes'])]
+        : templateColumnKeys;
+        
+      initialColumns = allColumnKeys.map(key => ({
         key,
         name: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')
       }));
-      const emptyRow = initialColumns.reduce((acc, col) => ({ ...acc, [col.key]: '' }), {});
-      initialGrid = employees.map(emp => ({ ...emptyRow, empId: emp.id }));
+      
+      // If template has assignments, use them to populate the grid
+      if (sourceData.assignments && sourceData.assignments.length > 0) {
+        initialGrid = sourceData.assignments.map(assignment => {
+          const row = { empId: assignment.user_id };
+          // Populate standard columns from assignment data
+          row.start_time = assignment.start_time || '';
+          row.end_time = assignment.end_time || '';
+          row.notes = assignment.notes || '';
+          
+          // Populate any additional template columns with empty values
+          allColumnKeys.forEach(key => {
+            if (!row.hasOwnProperty(key)) {
+              row[key] = '';
+            }
+          });
+          
+          return row;
+        });
+      } else {
+        // If no assignments, create empty rows for all employees
+        const emptyRow = initialColumns.reduce((acc, col) => ({ ...acc, [col.key]: '' }), {});
+        initialGrid = employees.map(emp => ({ ...emptyRow, empId: emp.id }));
+      }
     } else {
       initialGrid = [{ empId: '', start_time: '', end_time: '' }];
     }
@@ -247,7 +276,7 @@ const ScheduleBuilderPage = (props) => {
     setScheduleName(initialName);
     setColumns(initialColumns);
     setGridData(initialGrid);
-  }, [initialDate, method, sourceData, employees, positions, positionsMap, loading]);
+  }, [scheduleDate, initialDate, method, sourceData, employees, positions, positionsMap, loading]);
 
   const addEmployeeRow = () => {
     const newRow = columns.reduce((acc, col) => ({ ...acc, [col.key]: '' }), { empId: '' });
