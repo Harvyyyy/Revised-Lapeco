@@ -124,7 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Schedule Templates - with role-based access control
-    Route::middleware(['role.access:schedule,index'])->get('/schedule-templates', [ScheduleController::class, 'getTemplates']);
+    Route::middleware(['role.access:schedule,index'])->get('/schedule-templates', [ScheduleController::class, 'templatesIndex']);
     Route::middleware(['role.access:schedule,store'])->post('/schedule-templates', [ScheduleController::class, 'createTemplate']);
     Route::middleware(['role.access:schedule,update'])->put('/schedule-templates/{id}', [ScheduleController::class, 'updateTemplate']);
     Route::middleware(['role.access:schedule,destroy'])->delete('/schedule-templates/{id}', [ScheduleController::class, 'deleteTemplate']);
