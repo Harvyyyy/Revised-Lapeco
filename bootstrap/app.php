@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register custom middleware aliases
         $middleware->alias([
             'role.access' => \App\Http\Middleware\RoleBasedAccess::class,
+            'check.account.status' => \App\Http\Middleware\CheckAccountStatus::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

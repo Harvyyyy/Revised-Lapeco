@@ -10,13 +10,47 @@ const ScheduleInterviewModal = ({ show, onClose, onSave, applicant }) => {
   });
   const [errors, setErrors] = useState({});
 
+  // Function to convert 12-hour format to 24-hour format
+  const convertTo24Hour = (time12h) => {
+    if (!time12h) return '';
+    
+    // Check if it's already in 24-hour format
+    if (!time12h.includes('AM') && !time12h.includes('PM')) {
+      return time12h;
+    }
+    
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    
+    if (hours === '12') {
+      hours = '00';
+    }
+    
+    if (modifier === 'PM') {
+      hours = parseInt(hours, 10) + 12;
+    }
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
   // Populate form with existing interview schedule data when modal opens
   useEffect(() => {
     if (show && applicant?.interview_schedule) {
       const schedule = applicant.interview_schedule;
+      // Format time to HH:MM format if it exists
+      let formattedTime = schedule.time || '';
+      
+      // Convert from 12-hour to 24-hour format if needed
+      formattedTime = convertTo24Hour(formattedTime);
+      
+      // Handle HHMM format (without colon)
+      if (formattedTime && !formattedTime.includes(':') && formattedTime.length === 4) {
+        formattedTime = formattedTime.substring(0, 2) + ':' + formattedTime.substring(2);
+      }
+      
       setFormData({
         interview_date: schedule.date || '',
-        interview_time: schedule.time || '',
+        interview_time: formattedTime,
         interviewer: schedule.interviewer || '',
         location: schedule.location || '',
         notes: schedule.notes || ''

@@ -223,8 +223,8 @@ const MyProfilePage = () => {
                             <div className="resume-tab-container">
                                 {isHrUser && (
                                     <div className="mb-3">
-                                        <label htmlFor="resumeFile" className="info-label">Upload New Resume (PDF)</label>
-                                        <input type="file" className="form-control" id="resumeFile" name="resumeFile" accept=".pdf" onChange={handleResumeFileChange} />
+                                        <label htmlFor="resumeFile" className="info-label">Upload New Resume (PDF, DOC, DOCX)</label>
+                                        <input type="file" className="form-control" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" onChange={handleResumeFileChange} />
                                     </div>
                                 )}
                                 {resumePreview ? (

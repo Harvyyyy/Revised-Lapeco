@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import ConfirmationModal from '../../modals/ConfirmationModal';
+import ToastNotification from '../../common/ToastNotification';
 import { employeeAPI } from '../../services/api';
 import './AccountsPage.css';
 
@@ -9,6 +10,7 @@ const AccountsPage = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -43,7 +45,11 @@ const AccountsPage = () => {
                 const response = await employeeAPI.resetPassword(employeeId);
                 
                 // Show success message with the new password
-                alert(`Password reset successfully! New password: ${response.data.new_password}`);
+                setToast({
+                    show: true,
+                    message: `Password reset successfully! New password: ${response.data.new_password}`,
+                    type: 'success'
+                });
                 
                 // Update local state to reflect password_changed = false
                 setUserAccounts(prev => 
@@ -56,7 +62,11 @@ const AccountsPage = () => {
                 
             } catch (error) {
                 console.error('Error resetting password:', error);
-                alert('Failed to reset password. Please try again.');
+                setToast({
+                    show: true,
+                    message: 'Failed to reset password. Please try again.',
+                    type: 'error'
+                });
             }
         },
         toggleAccountStatus: async (employeeId) => {
@@ -96,14 +106,26 @@ const AccountsPage = () => {
                 );
                 
                 // Show success message
-                alert(`Account ${newStatus.toLowerCase()} successfully!`);
+                setToast({
+                    show: true,
+                    message: `Account ${newStatus.toLowerCase()} successfully!`,
+                    type: 'success'
+                });
                 
             } catch (error) {
                 console.error('Error updating account status:', error);
                 if (error.response?.data?.error) {
-                    alert(error.response.data.error);
+                    setToast({
+                        show: true,
+                        message: error.response.data.error,
+                        type: 'error'
+                    });
                 } else {
-                    alert('Failed to update account status. Please try again.');
+                    setToast({
+                        show: true,
+                        message: 'Failed to update account status. Please try again.',
+                        type: 'error'
+                    });
                 }
             }
         }
@@ -134,7 +156,17 @@ const AccountsPage = () => {
 
     const handleCopyToClipboard = (text, type) => {
         navigator.clipboard.writeText(text).then(() => {
-            alert(`${type} copied to clipboard!`);
+            setToast({
+                show: true,
+                message: `${type} copied to clipboard!`,
+                type: 'success'
+            });
+        }).catch(() => {
+            setToast({
+                show: true,
+                message: `Failed to copy ${type.toLowerCase()} to clipboard.`,
+                type: 'error'
+            });
         });
     };
 
@@ -274,6 +306,14 @@ const AccountsPage = () => {
             >
                 <p>{confirmationModalState.body}</p>
             </ConfirmationModal>
+
+            {toast.show && (
+                <ToastNotification
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast({ show: false, message: '', type: 'success' })}
+                />
+            )}
         </div>
     );
 };

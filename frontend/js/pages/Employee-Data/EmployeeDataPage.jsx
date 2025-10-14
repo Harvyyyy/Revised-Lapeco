@@ -66,6 +66,8 @@ const EmployeeDataPage = () => {
     pagIbigNo: e.pag_ibig_no ?? e.pagIbigNo ?? null,
     philhealthNo: e.philhealth_no ?? e.philhealthNo ?? null,
     resumeFile: e.resume_file ?? e.resumeFile ?? null,
+    resumeUrl: e.resumeUrl ?? null,
+    attendance_status: e.attendance_status ?? 'Active',
   });
 
   // Fetch employees and positions
@@ -74,7 +76,7 @@ const EmployeeDataPage = () => {
       try {
         setLoading(true);
         const [empRes, posRes] = await Promise.all([
-          employeeAPI.getAll(),
+          employeeAPI.getList(), // Use optimized endpoint for list view
           positionAPI.getAll(),
         ]);
         const empData = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.data || []);
@@ -86,12 +88,21 @@ const EmployeeDataPage = () => {
           positionMap[p.id] = p.title ?? p.name;
         });
         
-        // Normalize employees and add position title
-        const normalizedEmployees = empData.map(e => {
-          const normalized = normalizeEmployee(e);
-          normalized.positionTitle = normalized.positionId ? positionMap[normalized.positionId] : null;
-          return normalized;
-        });
+        // For list view, we already have the essential data from the optimized endpoint
+        // No need to normalize as much since the backend returns the right format
+        const normalizedEmployees = empData.map(e => ({
+          id: e.id,
+          name: e.name,
+          email: e.email,
+          positionId: e.position_id,
+          position: e.position,
+          positionTitle: e.position, // Backend already provides position name
+          joiningDate: e.joining_date,
+          imageUrl: e.image_url,
+          status: e.attendance_status || 'Pending', // Use attendance_status for status filter
+          attendance_status: e.attendance_status,
+          account_status: e.status, // Keep account_status separate
+        }));
         
         setEmployees(normalizedEmployees);
 
@@ -114,23 +125,67 @@ const EmployeeDataPage = () => {
     saveEmployee: async (employeeData, id) => {
       try {
         const isEdit = Boolean(id);
-        const payload = {
-          name: employeeData.name,
-          email: employeeData.email,
-          ...(isEdit ? {} : { role: employeeData.role || 'REGULAR_EMPLOYEE' }),
-          position_id: employeeData.positionId ? Number(employeeData.positionId) : null,
-          joining_date: employeeData.joiningDate || null,
-          birthday: employeeData.birthday || null,
-          gender: employeeData.gender || null,
-          address: employeeData.address || null,
-          contact_number: employeeData.contactNumber || null,
-          sss_no: employeeData.sssNo || null,
-          tin_no: employeeData.tinNo || null,
-          pag_ibig_no: employeeData.pagIbigNo || null,
-          philhealth_no: employeeData.philhealthNo || null,
-        };
+        
+        // Check if we have a NEW file to upload (not just existing resume URL)
+        const hasNewFile = employeeData.resumeFile && employeeData.resumeFile instanceof File;
+        
+        console.log('File upload check:', {
+          hasResumeFile: !!employeeData.resumeFile,
+          isFileInstance: employeeData.resumeFile instanceof File,
+          hasNewFile: hasNewFile,
+          resumeFileType: typeof employeeData.resumeFile,
+          resumeFile: employeeData.resumeFile
+        });
+        
+        let payload;
+        if (hasNewFile) {
+          // Use FormData for file uploads
+          payload = new FormData();
+          payload.append('name', employeeData.name);
+          payload.append('email', employeeData.email);
+          if (!isEdit) {
+            payload.append('role', employeeData.role || 'REGULAR_EMPLOYEE');
+          }
+          if (employeeData.positionId) payload.append('position_id', Number(employeeData.positionId));
+          if (employeeData.joiningDate) payload.append('joining_date', employeeData.joiningDate);
+          if (employeeData.birthday) payload.append('birthday', employeeData.birthday);
+          if (employeeData.gender) payload.append('gender', employeeData.gender);
+          if (employeeData.address) payload.append('address', employeeData.address);
+          if (employeeData.contactNumber) payload.append('contact_number', employeeData.contactNumber);
+          if (employeeData.sssNo) payload.append('sss_no', employeeData.sssNo);
+          if (employeeData.tinNo) payload.append('tin_no', employeeData.tinNo);
+          if (employeeData.pagIbigNo) payload.append('pag_ibig_no', employeeData.pagIbigNo);
+          if (employeeData.philhealthNo) payload.append('philhealth_no', employeeData.philhealthNo);
+          if (employeeData.resumeFile) payload.append('resume_file', employeeData.resumeFile);
+        } else {
+          // Use JSON for regular data
+          payload = {
+            name: employeeData.name,
+            email: employeeData.email,
+            ...(isEdit ? {} : { role: employeeData.role || 'REGULAR_EMPLOYEE' }),
+            position_id: employeeData.positionId ? Number(employeeData.positionId) : null,
+            joining_date: employeeData.joiningDate || null,
+            birthday: employeeData.birthday || null,
+            gender: employeeData.gender || null,
+            address: employeeData.address || null,
+            contact_number: employeeData.contactNumber || null,
+            sss_no: employeeData.sssNo || null,
+            tin_no: employeeData.tinNo || null,
+            pag_ibig_no: employeeData.pagIbigNo || null,
+            philhealth_no: employeeData.philhealthNo || null,
+          };
+        }
 
         if (isEdit) {
+          console.log('Updating employee with payload:', payload);
+          console.log('Has new file:', hasNewFile);
+          if (hasNewFile && employeeData.resumeFile) {
+            console.log('Resume file details:', {
+              name: employeeData.resumeFile.name,
+              size: employeeData.resumeFile.size,
+              type: employeeData.resumeFile.type
+            });
+          }
           await employeeAPI.update(id, payload);
           setToast({ show: true, message: 'Employee updated successfully!', type: 'success' });
         } else {
@@ -143,21 +198,22 @@ const EmployeeDataPage = () => {
           }
         }
         // Refresh
-        const response = await employeeAPI.getAll();
+        const response = await employeeAPI.getList();
         const empData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
         
-        // Create position lookup map for refresh
-        const positionMap = {};
-        positions.forEach(p => {
-          positionMap[p.id] = p.title;
-        });
-        
-        // Normalize employees and add position title
-        const normalizedEmployees = empData.map(e => {
-          const normalized = normalizeEmployee(e);
-          normalized.positionTitle = normalized.positionId ? positionMap[normalized.positionId] : null;
-          return normalized;
-        });
+        // For list view, we already have the essential data from the optimized endpoint
+        const normalizedEmployees = empData.map(e => ({
+          id: e.id,
+          name: e.name,
+          email: e.email,
+          positionId: e.position_id,
+          position: e.position,
+          positionTitle: e.position,
+          joiningDate: e.joining_date,
+          imageUrl: e.image_url,
+          status: e.status,
+          attendance_status: e.attendance_status,
+        }));
         
         setEmployees(normalizedEmployees);
         setShowAddEditModal(false);
@@ -195,9 +251,21 @@ const EmployeeDataPage = () => {
       try {
         await employeeAPI.delete(employeeId);
         setToast({ show: true, message: 'Employee deleted successfully!', type: 'success' });
-        const response = await employeeAPI.getAll();
+        const response = await employeeAPI.getList();
         const empData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-        setEmployees(empData.map(normalizeEmployee));
+        const normalizedEmployees = empData.map(e => ({
+          id: e.id,
+          name: e.name,
+          email: e.email,
+          positionId: e.position_id,
+          position: e.position,
+          positionTitle: e.position,
+          joiningDate: e.joining_date,
+          imageUrl: e.image_url,
+          status: e.status,
+          attendance_status: e.attendance_status,
+        }));
+        setEmployees(normalizedEmployees);
       } catch (err) {
         // Extract user-friendly error message from backend response
         let message = 'Failed to delete employee. Please try again.';
@@ -218,9 +286,21 @@ const EmployeeDataPage = () => {
         // Refresh data to sync with server state if it's a 404 error
         if (err.response?.status === 404) {
           try {
-            const response = await employeeAPI.getAll();
+            const response = await employeeAPI.getList();
             const empData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-            setEmployees(empData.map(normalizeEmployee));
+            const normalizedEmployees = empData.map(e => ({
+              id: e.id,
+              name: e.name,
+              email: e.email,
+              positionId: e.position_id,
+              position: e.position,
+              positionTitle: e.position,
+              joiningDate: e.joining_date,
+              imageUrl: e.image_url,
+              status: e.status,
+              attendance_status: e.attendance_status,
+            }));
+            setEmployees(normalizedEmployees);
           } catch (refreshError) {
             // Silent fail on refresh error
           }
@@ -245,21 +325,22 @@ const EmployeeDataPage = () => {
         setToast({ show: true, message: 'Employee terminated successfully!', type: 'success' });
         
         // Refresh employee data
-        const response = await employeeAPI.getAll();
+        const response = await employeeAPI.getList();
         const empData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
         
-        // Create position lookup map for refresh
-        const positionMap = {};
-        positions.forEach(p => {
-          positionMap[p.id] = p.title;
-        });
-        
-        // Normalize employees and add position title
-        const normalizedEmployees = empData.map(e => {
-          const normalized = normalizeEmployee(e);
-          normalized.positionTitle = normalized.positionId ? positionMap[normalized.positionId] : null;
-          return normalized;
-        });
+        // For list view, we already have the essential data from the optimized endpoint
+        const normalizedEmployees = empData.map(e => ({
+          id: e.id,
+          name: e.name,
+          email: e.email,
+          positionId: e.position_id,
+          position: e.position,
+          positionTitle: e.position,
+          joiningDate: e.joining_date,
+          imageUrl: e.image_url,
+          status: e.status,
+          attendance_status: e.attendance_status,
+        }));
         
         setEmployees(normalizedEmployees);
         setShowTerminateModal(false);
@@ -332,6 +413,14 @@ const EmployeeDataPage = () => {
     if (statusFilter) { records = records.filter(emp => (emp.status || 'Pending') === statusFilter); }
     if (sortConfig.key) {
       records.sort((a, b) => {
+        // Handle numeric fields (like employee ID) as numbers
+        if (sortConfig.key === 'id') {
+          const numA = parseInt(a[sortConfig.key]) || 0;
+          const numB = parseInt(b[sortConfig.key]) || 0;
+          return sortConfig.direction === 'ascending' ? numA - numB : numB - numA;
+        }
+        
+        // Handle other fields as strings
         const valA = String(a[sortConfig.key] || '').toLowerCase();
         const valB = String(b[sortConfig.key] || '').toLowerCase();
         if (valA < valB) return sortConfig.direction === 'ascending' ? -1 : 1;
@@ -357,7 +446,7 @@ const EmployeeDataPage = () => {
 
   const getSortIcon = (key) => {
     if (sortConfig.key !== key) return <i className="bi bi-arrow-down-up sort-icon ms-1"></i>;
-    return sortConfig.direction === 'ascending' ? <i className="bi bi-sort-up sort-icon active ms-1"></i> : <i className="bi bi-sort-down sort-icon active ms-1"></i>;    return sortConfig.direction === 'ascending' ? <i className="bi bi-sort-up sort-icon active ms-1"></i> : <i className="bi bi-sort-down sort-icon active ms-1"></i>;
+    return sortConfig.direction === 'ascending' ? <i className="bi bi-sort-up sort-icon active ms-1"></i> : <i className="bi bi-sort-down sort-icon active ms-1"></i>;
   };
 
   const handleCloseModal = () => {
@@ -365,10 +454,19 @@ const EmployeeDataPage = () => {
     setSelectedEmployee(null);
   };
 
-  const handleOpenViewModal = (employee) => {
-    setSelectedEmployee(employee);
-    setIsViewOnlyMode(true);
-    setShowModal(true);
+  const handleOpenViewModal = async (employee) => {
+    try {
+      // Fetch full employee data for view modal
+      const response = await employeeAPI.getById(employee.id);
+      const fullEmployeeData = normalizeEmployee(response.data);
+      fullEmployeeData.positionTitle = employee.positionTitle; // Keep the position title from list
+      
+      setSelectedEmployee(fullEmployeeData);
+      setIsViewOnlyMode(true);
+      setShowModal(true);
+    } catch (err) {
+      setToast({ show: true, message: 'Failed to load employee details. Please try again.', type: 'error' });
+    }
   };
   
   const handleOpenAddModal = () => {
@@ -377,11 +475,20 @@ const EmployeeDataPage = () => {
     setShowModal(true);
   };
 
-  const handleOpenEditModal = (e, employee) => {
+  const handleOpenEditModal = async (e, employee) => {
     e.stopPropagation();
-    setSelectedEmployee(employee);
-    setIsViewOnlyMode(false);
-    setShowModal(true);
+    try {
+      // Fetch full employee data for edit modal
+      const response = await employeeAPI.getById(employee.id);
+      const fullEmployeeData = normalizeEmployee(response.data);
+      fullEmployeeData.positionTitle = employee.positionTitle; // Keep the position title from list
+      
+      setSelectedEmployee(fullEmployeeData);
+      setIsViewOnlyMode(false);
+      setShowModal(true);
+    } catch (err) {
+      setToast({ show: true, message: 'Failed to load employee details. Please try again.', type: 'error' });
+    }
   };
 
  const handleDeleteEmployee = (e, employeeId) => { 
@@ -452,7 +559,9 @@ const EmployeeDataPage = () => {
             <img src={emp.imageUrl || placeholderImage} alt={emp.name} className="employee-avatar-v2" onError={(e) => { e.target.src = placeholderImage; }} />
             <h5 className="employee-name-v2">{emp.name}</h5>
             <p className="employee-position-v2">{emp.position || 'Unassigned'}</p>
-            <span className={`status-badge-employee status-badge-${(emp.status || 'pending').toLowerCase()}`}>{emp.status || 'Pending'}</span>
+            <div className="d-flex gap-2 mb-2">
+              <span className={`status-badge-employee status-badge-${(emp.attendance_status || 'pending').toLowerCase()}`}>{emp.attendance_status || 'Pending'}</span>
+            </div>
           </div>
           <div className="employee-details-v2">
               <div className="detail-item">
@@ -479,7 +588,7 @@ const EmployeeDataPage = () => {
               <th className="sortable" onClick={() => requestSort('name')}>Name {getSortIcon('name')}</th>
               <th>Position</th>
               <th className="sortable" onClick={() => requestSort('joiningDate')}>Joining Date {getSortIcon('joiningDate')}</th>
-              <th>Status</th>
+              <th>Attendance Status</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -494,7 +603,7 @@ const EmployeeDataPage = () => {
               </td>
               <td>{emp.positionTitle || 'Unassigned'}</td>
               <td>{emp.joiningDate}</td>
-              <td><span className={`status-badge-employee status-badge-${(emp.status || 'pending').toLowerCase()}`}>{emp.status || 'Pending'}</span></td>
+              <td><span className={`status-badge-employee status-badge-${(emp.attendance_status || 'pending').toLowerCase()}`}>{emp.attendance_status || 'Pending'}</span></td>
               <td>
                 <div className="dropdown">
                   <button className="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
@@ -580,9 +689,9 @@ const EmployeeDataPage = () => {
           {showModal && viewingEmployee && ( <ViewEmployeeDetailsModal employee={viewingEmployee} show={showViewModal} onClose={handleCloseViewModal} positionMap={positionMap} /> )}
           </>
             )}
-              {activeTab === 'requirements' && (      
-            <RequirementsChecklist employees={employees} />
-          )}
+              {activeTab === 'requirements' && (
+             <RequirementsChecklist />
+           )}
 
           {(isLoading || pdfDataUri) && (
             <ReportPreviewModal

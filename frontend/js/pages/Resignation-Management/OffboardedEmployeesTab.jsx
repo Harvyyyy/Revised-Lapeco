@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import ActionsDropdown from '../../common/ActionsDropdown';
 import { calculateFinalPay } from '../../hooks/payrollUtils';
+import { formatDate } from '../../utils/dateUtils';
 
 const formatCurrency = (value) => (value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -138,7 +139,7 @@ const OffboardedEmployeesTab = ({ employees, resignations, positions, payrolls, 
                                         <div className="fw-bold">{emp.name}</div>
                                     </td>
                                     <td>{lastResignation?.position || 'N/A'}</td>
-                                    <td>{lastResignation?.effectiveDate || 'N/A'}</td>
+                                    <td>{formatDate(lastResignation?.effectiveDate) || 'N/A'}</td>
                                     <td className="text-end fw-bold">₱{formatCurrency(emp.finalPay)}</td>
                                     <td className="text-center">
                                         <span className={`status-badge status-${emp.finalPayStatus.toLowerCase()}`}>

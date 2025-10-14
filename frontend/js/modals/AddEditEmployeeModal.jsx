@@ -63,7 +63,19 @@ const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, 
           setFormData({ ...formData, imageUrl: file, imagePreviewUrl: URL.createObjectURL(file) });
         }
       } else if (name === 'resumeFile') {
-        setFormData({ ...formData, resumeFile: file, resumeUrl: file ? URL.createObjectURL(file) : employeeData?.resumeUrl || null });
+        if (file) {
+          console.log('Resume file selected:', {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+          });
+          // For new file uploads, create a temporary URL for preview
+          setFormData({ ...formData, resumeFile: file, resumeUrl: URL.createObjectURL(file) });
+        } else {
+          // If no file selected, revert to original resume URL if editing
+          setFormData({ ...formData, resumeFile: null, resumeUrl: employeeData?.resumeUrl || null });
+        }
       }
     } else {
       setFormData({ ...formData, [name]: value });
@@ -207,19 +219,23 @@ const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, 
                       <div className="resume-tab-container">
                         {!isViewMode && (
                           <div className="mb-3">
-                            <label htmlFor="resumeFile" className="form-label">Upload New Resume (PDF)</label>
-                            <input type="file" className="form-control" id="resumeFile" name="resumeFile" accept=".pdf" onChange={handleChange} />
+                            <label htmlFor="resumeFile" className="form-label">Upload New Resume (PDF, DOC, DOCX)</label>
+                            <input type="file" className="form-control" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" onChange={handleChange} />
                           </div>
                         )}
 
                         {formData.resumeUrl ? (
                           <div className="resume-viewer">
-                            <iframe
-                                src={formData.resumeUrl}
-                                title={`${formData.name}'s Resume`}
-                                width="100%"
-                                height="100%"
-                            />
+                            {formData.resumeUrl.includes('blob:') ? (
+                              <iframe src={formData.resumeUrl} width="100%" height="600px" title="Resume Preview"></iframe>
+                            ) : (
+                              <div className="d-flex flex-column align-items-center">
+                                <a href={formData.resumeUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary mb-3">
+                                  <i className="bi bi-file-earmark-pdf me-2"></i>View Resume
+                                </a>
+                                <p className="text-muted">Resume file is available. Click the button above to view it.</p>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="resume-placeholder">

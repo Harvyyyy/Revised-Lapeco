@@ -16,30 +16,29 @@ class AttendanceSeeder extends Seeder
      */
     public function run(): void
     {
-        // Get all schedule assignments for past dates (up to today)
-        // This will work with whatever schedules exist in the database
+        // Clear existing attendance records to avoid conflicts
+        Attendance::truncate();
+        
+        // Get all schedule assignments for the last 60 days
         $scheduleAssignments = ScheduleAssignment::with(['schedule', 'user'])
             ->whereHas('schedule', function ($query) {
-                $query->where('date', '<=', now()->toDateString());
+                $query->whereBetween('date', [
+                    now()->subDays(60),
+                    now()->subDay() // Don't include today, we'll handle it separately
+                ]);
             })
             ->get();
 
         foreach ($scheduleAssignments as $assignment) {
-            // Get existing attendance record (should exist due to ScheduleAssignment model)
-            $attendance = Attendance::where('schedule_assignment_id', $assignment->id)->first();
-            
-            if (!$attendance) {
-                // This shouldn't happen with the new logic, but create if missing
-                $attendance = Attendance::create([
-                    'schedule_assignment_id' => $assignment->id,
-                    'status' => 'scheduled'
-                ]);
-            }
-            
-            // Only update if it's still in 'scheduled' status (not manually updated)
-            if ($attendance->status !== 'scheduled') {
-                continue;
-            }
+            // Create attendance record for this assignment
+            $attendance = Attendance::create([
+                'schedule_assignment_id' => $assignment->id,
+                'status' => 'scheduled',
+                'sign_in' => null,
+                'break_out' => null,
+                'break_in' => null,
+                'sign_out' => null,
+            ]);
             
             // Get the schedule date to determine absence patterns
             $scheduleDate = Carbon::parse($assignment->schedule->date);
@@ -48,39 +47,43 @@ class AttendanceSeeder extends Seeder
             $isFriday = $dayOfWeek === 5;
             $isWeekend = $scheduleDate->isWeekend();
             
-            // Variable absence rates based on day of week and season
-            $baseAbsenceRate = 15; // Base 15% absence rate
+            // More realistic absence rates - much lower base rate
+            $baseAbsenceRate = 5; // Base 5% absence rate (much more realistic)
             
-            // Mondays have higher absence rate (post-weekend effect)
+            // Mondays have slightly higher absence rate (post-weekend effect)
             if ($isMonday) {
-                $baseAbsenceRate = 25;
+                $baseAbsenceRate = 8;
             }
             
             // Fridays have slightly higher absence rate
             if ($isFriday) {
-                $baseAbsenceRate = 20;
+                $baseAbsenceRate = 7;
             }
             
             // Weekend shifts have higher absence rate
             if ($isWeekend) {
-                $baseAbsenceRate = 30;
+                $baseAbsenceRate = 12;
             }
             
             // Seasonal variations - higher absence in December/January (holidays)
             $month = $scheduleDate->month;
             if (in_array($month, [12, 1])) {
-                $baseAbsenceRate += 10;
+                $baseAbsenceRate += 3;
             }
             
             // Summer months (April-June) might have higher absence due to vacations
             if (in_array($month, [4, 5, 6])) {
-                $baseAbsenceRate += 5;
+                $baseAbsenceRate += 2;
             }
             
             // Skip some assignments to simulate absences
             if (rand(1, 100) <= $baseAbsenceRate) {
                 $attendance->update([
-                    'status' => 'absent'
+                    'status' => 'absent',
+                    'sign_in' => null,
+                    'break_out' => null,
+                    'break_in' => null,
+                    'sign_out' => null
                 ]);
                 continue;
             }
@@ -89,14 +92,14 @@ class AttendanceSeeder extends Seeder
             $shiftStart = Carbon::parse($assignment->start_time);
             $shiftEnd = Carbon::parse($assignment->end_time);
             
-            // Generate sign in time (80% on time, 20% with various delays)
+            // Generate sign in time (85% on time, 15% with various delays)
             $lateChance = rand(1, 100);
-            if ($lateChance <= 80) {
-                // On time or early (within 15 minutes of start time)
-                $signInTime = $shiftStart->copy()->subMinutes(rand(0, 15));
+            if ($lateChance <= 85) {
+                // On time or early (within 10 minutes of start time)
+                $signInTime = $shiftStart->copy()->subMinutes(rand(0, 10));
             } else {
-                // Late arrival (5-45 minutes late)
-                $signInTime = $shiftStart->copy()->addMinutes(rand(5, 45));
+                // Late arrival (5-30 minutes late)
+                $signInTime = $shiftStart->copy()->addMinutes(rand(5, 30));
             }
             
             // Break times (1 hour lunch break)

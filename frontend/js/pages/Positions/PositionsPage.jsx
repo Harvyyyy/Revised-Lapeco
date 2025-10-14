@@ -263,7 +263,7 @@ const PositionsPage = (props) => {
 
   const handleToggleLeader = async (employeeId) => {
     try {
-      const response = await employeeAPI.toggleTeamLeaderStatus(employeeId);
+      const response = await employeeAPI.toggleTeamLeader(employeeId);
       
       // Show success message
       if (response.data?.message) {
@@ -430,6 +430,16 @@ const PositionsPage = (props) => {
         >
           Are you sure you want to add this employee to the selected position?
         </ConfirmationModal>
+
+        {/* Toast Notification */}
+        {toast.show && (
+          <ToastNotification
+            show={toast.show}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast({ show: false, message: '', type: 'success' })}
+          />
+        )}
       </div>
     );
   }
@@ -549,6 +559,7 @@ const PositionsPage = (props) => {
       {/* Toast Notification */}
       {toast.show && (
         <ToastNotification
+          show={toast.show}
           message={toast.message}
           type={toast.type}
           onClose={() => setToast({ show: false, message: '', type: 'success' })}

@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Import components
-import ErrorBoundary from './components/ErrorBoundary';
+
 
 // Import pages
 import Login from './pages/Authentication/Login';
@@ -40,6 +40,8 @@ import AccountSettingsPage from './pages/Account-Settings/AccountSettingsPage';
 import PredictiveAnalyticsPage from './pages/Predictive-Analytics/PredictiveAnalyticsPage';
 import LeaderboardsPage from './pages/Leaderboards/LeaderboardsPage';
 import ResignationManagementPage from './pages/Resignation-Management/ResignationManagementPage';
+import MyResignationPage from './pages/My-Resignation/MyResignationPage';
+import ErrorBoundary from './common/ErrorBoundary';
 
 // Import layout, context, and components
 import Layout from './layout/Layout';
@@ -121,15 +123,18 @@ function App() {
             <Route path="dashboard/account-settings" element={<AccountSettingsPage />} />
             <Route path="dashboard/accounts" element={<AccountsPage />} />
 
-            {/* Team Leader Routes */}
+            {/* Team Leader & Regular Employee Routes */}
             <Route path="dashboard/team-employees" element={<MyTeamPage />} />
             <Route path="dashboard/evaluate-team" element={<div className="p-5 text-center"><h1>Evaluate Team</h1><p>This page is under construction.</p></div>} />
             <Route path="dashboard/my-leave" element={<MyLeavePage />} />
             <Route path="dashboard/my-attendance" element={<MyAttendancePage />} />
-
-            {/* Regular Employee Routes */}
             <Route path="dashboard/my-payroll" element={<div className="p-5 text-center"><h1>My Payroll</h1><p>This page is under construction.</p></div>} />
             <Route path="dashboard/evaluate-self" element={<div className="p-5 text-center"><h1>My Evaluations</h1><p>This page is under construction.</p></div>} />
+            <Route path="dashboard/my-resignation" element={
+              <ErrorBoundary>
+                <MyResignationPage />
+              </ErrorBoundary>
+            } />
           </Route>
 
           {/* Catch all route */}

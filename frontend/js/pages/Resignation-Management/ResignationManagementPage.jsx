@@ -247,20 +247,24 @@ const ResignationManagementPage = () => {
     const handleConfirmRehire = async () => {
         if (employeeToRehire) {
             try {
-                // Update employee status to active
-                await employeeAPI.update(employeeToRehire.id, {
-                    employment_status: 'active',
-                    joining_date: new Date().toISOString().split('T')[0]
-                });
+                // Use the new rehire endpoint
+                await employeeAPI.rehireEmployee(employeeToRehire.id);
                 
                 // Refresh employee data
                 const employeesRes = await employeeAPI.getAllIncludingTerminated();
                 setEmployees(employeesRes.data);
                 
                 setEmployeeToRehire(null);
+                
+                // Show success message
+                alert('Employee rehired successfully!');
             } catch (err) {
                 console.error('Error rehiring employee:', err);
-                setError('Failed to rehire employee. Please try again.');
+                if (err.response?.data?.error) {
+                    alert(err.response.data.error);
+                } else {
+                    setError('Failed to rehire employee. Please try again.');
+                }
             }
         }
     };

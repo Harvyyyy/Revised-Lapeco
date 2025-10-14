@@ -45,7 +45,7 @@ class ApplicantController extends Controller
 
         // Append the full_name attribute to each applicant
         $applicants->each(function ($applicant) {
-            $applicant->append('full_name');
+            $applicant->append(['full_name', 'resume_url']);
         });
 
         return response()->json($applicants);
@@ -107,7 +107,7 @@ class ApplicantController extends Controller
     public function show($id)
     {
         $applicant = Applicant::findOrFail($id);
-        $applicant->append('full_name');
+        $applicant->append(['full_name', 'resume_url']);
         return response()->json($applicant);
     }
 
@@ -133,7 +133,6 @@ class ApplicantController extends Controller
         ]);
 
         if ($validator->fails()) {
-            \Log::error('Hire validation failed:', $validator->errors()->toArray());
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
@@ -243,8 +242,6 @@ class ApplicantController extends Controller
         $applicant = Applicant::findOrFail($id);
 
         // Debug: Log the incoming request data
-        \Log::info('Hire request data:', $request->all());
-
         $validator = Validator::make($request->all(), [
             'position_id' => 'required|exists:positions,id',
             'salary' => 'nullable|numeric|min:0',
@@ -292,8 +289,6 @@ class ApplicantController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Hire applicant error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
             
             // Handle specific database constraint violations with user-friendly messages
             $errorMessage = $e->getMessage();

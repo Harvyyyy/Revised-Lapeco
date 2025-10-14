@@ -11,6 +11,7 @@ import AccountGeneratedModal from '../../modals/AccountGeneratedModal';
 import ConfirmationModal from '../../modals/ConfirmationModal';
 import ReportConfigurationModal from '../../modals/ReportConfigurationModal';
 import ActionsDropdown from '../../common/ActionsDropdown';
+import ToastNotification from '../../common/ToastNotification';
 import { reportsConfig } from '../../config/reports.config';
 import useReportGenerator from '../../hooks/useReportGenerator';
 import { positionAPI, applicantAPI } from '../../services/api';
@@ -41,6 +42,9 @@ const RecruitmentPage = () => {
   const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
   const [showReportConfigModal, setShowReportConfigModal] = useState(false);
+  
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   
   const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator();
   const [showReportPreview, setShowReportPreview] = useState(false);
@@ -125,8 +129,19 @@ const RecruitmentPage = () => {
             : app
         )
       );
+      
+      // Show success toast notification
+      const applicant = applicants.find(app => app.id === applicantId);
+      const applicantName = applicant?.name || 'Applicant';
+      setToast({ 
+        show: true, 
+        message: `${applicantName} has been moved to ${newStatus}`, 
+        type: 'success' 
+      });
     } catch (error) {
-      // Handle error (show toast, etc.)
+      // Show error toast notification
+      const errorMessage = error.response?.data?.message || 'Failed to update applicant status. Please try again.';
+      setToast({ show: true, message: errorMessage, type: 'error' });
     }
   };
 
@@ -141,8 +156,19 @@ const RecruitmentPage = () => {
         )
       );
       setShowInterviewModal(false);
+      
+      // Show success toast notification
+      const applicant = applicants.find(app => app.id === applicantId);
+      const applicantName = applicant?.name || 'Applicant';
+      setToast({ 
+        show: true, 
+        message: `Interview scheduled for ${applicantName}`, 
+        type: 'success' 
+      });
     } catch (error) {
-      // Handle error (show toast, etc.)
+      // Show error toast notification
+      const errorMessage = error.response?.data?.message || 'Failed to schedule interview. Please try again.';
+      setToast({ show: true, message: errorMessage, type: 'error' });
     }
   };
 
@@ -324,7 +350,7 @@ const RecruitmentPage = () => {
         // Handle other errors - clear validation errors and show generic error
         setHireValidationErrors(null);
         const errorMessage = error.response?.data?.message || 'An error occurred while hiring the applicant. Please try again.';
-        alert(errorMessage);
+        setToast({ show: true, message: errorMessage, type: 'error' });
       }
       // Throw the error so the modal knows the operation failed
       throw error;
@@ -512,6 +538,14 @@ const RecruitmentPage = () => {
         confirmText="Delete"
         confirmVariant="danger"
       />
+
+      {toast.show && (
+        <ToastNotification
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ show: false, message: '', type: 'success' })}
+        />
+      )}
     </div>
   );
 };
