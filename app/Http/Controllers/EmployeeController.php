@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Models\Position;
+use App\Models\Notification;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class EmployeeController extends Controller
@@ -35,6 +37,57 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Get limited employee data for list view (optimized for performance)
+     */
+    public function getEmployeesList(Request $request)
+    {
+        $user = $request->user();
+        $role = $user->role;
+        
+        // Role-based filtering
+        if ($role === 'HR_PERSONNEL') {
+            // HR can see all employees except terminated/resigned ones
+            $employees = User::whereNotIn('employment_status', ['terminated', 'resigned'])
+                           ->select('id', 'name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
+                           ->get();
+        } elseif ($role === 'TEAM_LEADER') {
+            // Team leaders can see employees with the same position_id, excluding terminated/resigned
+            $employees = User::where('position_id', $user->position_id)
+                           ->whereNotIn('employment_status', ['terminated', 'resigned'])
+                           ->select('id', 'name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
+                           ->get();
+        } else {
+            // Regular employees can see employees in their position, excluding terminated/resigned
+            $employees = User::where('position_id', $user->position_id)
+                           ->whereNotIn('employment_status', ['terminated', 'resigned'])
+                           ->select('id', 'name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
+                           ->get();
+        }
+        
+        // Get positions for mapping
+        $positions = Position::all()->mapWithKeys(function ($pos) {
+            return [$pos->id => $pos->name];
+        });
+        
+        // Format limited response data
+        $employees = $employees->map(function ($employee) use ($positions) {
+            return [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'email' => $employee->email,
+                'position_id' => $employee->position_id,
+                'position' => $positions[$employee->position_id] ?? 'Unassigned',
+                'joining_date' => $employee->joining_date,
+                'attendance_status' => $employee->attendance_status ?? 'Pending',
+                'image_url' => $employee->image_url,
+                'status' => $employee->account_status, // For frontend compatibility
+            ];
+        });
+        
+        return response()->json($employees);
+    }
+
+    /**
      * Get all employees including terminated/resigned for resignation management
      */
     public function getAllEmployees(Request $request)
@@ -55,7 +108,7 @@ class EmployeeController extends Controller
     /**
      * Format employee response data
      */
-    private function formatEmployeeResponse($employees, $user, $role)
+    private function formatEmployeeResponse($employees, $user, $role, $returnJson = true)
     {
         
         $positions = Position::all()->mapWithKeys(function ($pos) {
@@ -77,6 +130,7 @@ class EmployeeController extends Controller
                 'contact_number' => $employee->contact_number,
                 'image_url' => $employee->image_url,
                 'account_status' => $employee->account_status,
+                'attendance_status' => $employee->attendance_status ?? 'Pending',
                 'employment_status' => $employee->employment_status,
                 'password_changed' => $employee->password_changed,
             ];
@@ -88,18 +142,21 @@ class EmployeeController extends Controller
                 $data['pag_ibig_no'] = $employee->pag_ibig_no;
                 $data['philhealth_no'] = $employee->philhealth_no;
                 $data['resume_file'] = $employee->resume_file;
+                // Generate secure URL for private resume files
+                $data['resumeUrl'] = $employee->resume_file ? route('employee.resume', $employee->id) : null;
             } else {
                 $data['sss_no'] = null;
                 $data['tin_no'] = null;
                 $data['pag_ibig_no'] = null;
                 $data['philhealth_no'] = null;
                 $data['resume_file'] = null;
+                $data['resumeUrl'] = null;
             }
             
             return $data;
         });
         
-        return response()->json($employees);
+        return $returnJson ? response()->json($employees) : $employees;
     }
 
     public function show(Request $request, User $employee)
@@ -123,6 +180,7 @@ class EmployeeController extends Controller
             'contact_number' => $employee->contact_number,
             'image_url' => $employee->image_url,
             'account_status' => $employee->account_status,
+            'attendance_status' => $employee->attendance_status ?? 'Pending',
         ];
         
         // Only include sensitive data for HR personnel or if it's the user's own data
@@ -147,6 +205,21 @@ class EmployeeController extends Controller
     {
         // Authorization is now handled by middleware
         
+        // Debug logging for file upload BEFORE validation
+        if ($request->hasFile('resume_file')) {
+            $file = $request->file('resume_file');
+            \Log::info('File upload debug BEFORE validation:', [
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'extension' => $file->getClientOriginalExtension(),
+                'is_valid' => $file->isValid(),
+                'temp_path' => $file->getPathname()
+            ]);
+        } else {
+            \Log::info('No file uploaded in request BEFORE validation');
+        }
+        
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -163,9 +236,24 @@ class EmployeeController extends Controller
                 'tin_no' => 'nullable|string|max:20',
                 'pag_ibig_no' => 'nullable|string|max:20',
                 'philhealth_no' => 'nullable|string|max:20',
-                'resume_file' => 'nullable|string',
+                'resume_file' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // 5MB max
                 'account_status' => 'nullable|string|in:Active,Deactivated',
             ]);
+
+            // Debug logging for file upload AFTER validation
+            if ($request->hasFile('resume_file')) {
+                $file = $request->file('resume_file');
+                \Log::info('File upload debug AFTER validation:', [
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                    'extension' => $file->getClientOriginalExtension(),
+                    'is_valid' => $file->isValid(),
+                    'temp_path' => $file->getPathname()
+                ]);
+            } else {
+                \Log::info('No file uploaded in request AFTER validation');
+            }
         } catch (\Illuminate\Validation\ValidationException $e) {
             $errors = $e->errors();
             
@@ -206,6 +294,9 @@ class EmployeeController extends Controller
                     case 'contact_number':
                         $specificMessages[] = 'Contact number must be 20 characters or less';
                         break;
+                    case 'resume_file':
+                        $specificMessages[] = 'Resume file must be a PDF, DOC, or DOCX file and less than 5MB';
+                        break;
                     default:
                         $specificMessages[] = ucfirst(str_replace('_', ' ', $field)) . ' has invalid data';
                         break;
@@ -224,10 +315,45 @@ class EmployeeController extends Controller
         }
 
         try {
+            // Remove resume_file from validated data to handle it separately
+            $resumeFile = null;
+            if (isset($validated['resume_file'])) {
+                unset($validated['resume_file']);
+            }
+            
+            // Handle file upload - store in private storage for security using Laravel 12 Storage methods
+            if ($request->hasFile('resume_file')) {
+                $file = $request->file('resume_file');
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $filePath = 'resumes/' . $filename;
+                
+                // Use Storage::put() for Laravel 12
+                $stored = Storage::disk('local')->put($filePath, file_get_contents($file->getRealPath()));
+                
+                if ($stored) {
+                    $resumeFile = $filePath;
+                    
+                    \Log::info('File stored successfully using Storage::put():', [
+                        'original_name' => $file->getClientOriginalName(),
+                        'stored_path' => $filePath,
+                        'full_path' => Storage::disk('local')->path($filePath)
+                    ]);
+                } else {
+                    \Log::error('Failed to store file using Storage::put()');
+                }
+            } else {
+                \Log::info('No resume file in request or file upload failed');
+            }
+            
             // Add default values for required fields
             $validated['password'] = Hash::make('temporary'); // Temporary password, will be updated after creation
             $validated['password_changed'] = false;
             $validated['account_status'] = $validated['account_status'] ?? 'Active';
+            
+            // Add resume file path if it was uploaded
+            if ($resumeFile) {
+                $validated['resume_file'] = $resumeFile;
+            }
             
             // Create employee first to get the ID
             $employee = User::create($validated);
@@ -237,11 +363,15 @@ class EmployeeController extends Controller
             $employee->update([
                 'password' => Hash::make($defaultPassword)
             ]);
+            
+            // Format the response using the same method as other endpoints
+            $user = $request->user();
+            $formattedEmployee = $this->formatEmployeeResponse(collect([$employee->fresh()]), $user, $user->role, false)->first();
 
             // Return employee with account details for the modal
             return response()->json([
                 'message' => 'Employee created successfully! Login credentials have been generated.',
-                'employee' => $employee,
+                'employee' => $formattedEmployee,
                 'account_details' => [
                     'employee_id' => $employee->id,
                     'username' => $employee->email,
@@ -280,7 +410,7 @@ class EmployeeController extends Controller
                 'tin_no' => 'sometimes|nullable|string|max:20',
                 'pag_ibig_no' => 'sometimes|nullable|string|max:20',
                 'philhealth_no' => 'sometimes|nullable|string|max:20',
-                'resume_file' => 'sometimes|nullable|string',
+                'resume_file' => 'sometimes|nullable|file|mimes:pdf,doc,docx|max:5120', // 5MB max
                 'account_status' => 'sometimes|nullable|string|in:Active,Deactivated',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -323,6 +453,9 @@ class EmployeeController extends Controller
                     case 'contact_number':
                         $specificMessages[] = 'Contact number must be 20 characters or less';
                         break;
+                    case 'resume_file':
+                        $specificMessages[] = 'Resume file must be a PDF, DOC, or DOCX file and less than 5MB';
+                        break;
                     default:
                         $specificMessages[] = ucfirst(str_replace('_', ' ', $field)) . ' has invalid data';
                         break;
@@ -341,10 +474,94 @@ class EmployeeController extends Controller
         }
 
         try {
+            // Remove resume_file from validated data to handle it separately
+            $resumeFile = null;
+            if (isset($validated['resume_file'])) {
+                unset($validated['resume_file']);
+            }
+            
+            // Handle file upload - store in private storage for security using Laravel 12 Storage methods
+            if ($request->hasFile('resume_file')) {
+                $file = $request->file('resume_file');
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $filePath = 'resumes/' . $filename;
+                
+                // Use Storage::put() for Laravel 12
+                $stored = Storage::disk('local')->put($filePath, file_get_contents($file->getRealPath()));
+                
+                if ($stored) {
+                    $resumeFile = $filePath;
+                    
+                    \Log::info('File stored successfully in update using Storage::put():', [
+                        'original_name' => $file->getClientOriginalName(),
+                        'stored_path' => $filePath,
+                        'full_path' => Storage::disk('local')->path($filePath)
+                    ]);
+                } else {
+                    \Log::error('Failed to store file in update using Storage::put()');
+                }
+            } else {
+                \Log::info('No resume file in update request or file upload failed');
+            }
+            
+            // Add resume file path if it was uploaded
+            if ($resumeFile) {
+                $validated['resume_file'] = $resumeFile;
+            }
+            
+            // Store original values for comparison
+            $originalRole = $employee->role;
+            $originalPositionId = $employee->position_id;
+            
             $employee->update($validated);
+            
+            // Check if role or position changed and create notifications
+            $updatedEmployee = $employee->fresh();
+            
+            // Create notification for role change
+            if (isset($validated['role']) && $originalRole !== $validated['role']) {
+                $roleChangeMessage = $originalRole === 'TEAM_LEADER' 
+                    ? "Your role has been changed from Team Leader to Regular Employee."
+                    : ($validated['role'] === 'TEAM_LEADER' 
+                        ? "You have been promoted to Team Leader." 
+                        : "Your role has been updated to {$validated['role']}.");
+                
+                Notification::createForUser(
+                    $employee->id,
+                    'role_change',
+                    'Role Updated',
+                    $roleChangeMessage
+                );
+            }
+            
+            // Create notification for position change
+            if (isset($validated['position_id']) && $originalPositionId !== $validated['position_id']) {
+                $newPosition = $validated['position_id'] ? Position::find($validated['position_id']) : null;
+                $oldPosition = $originalPositionId ? Position::find($originalPositionId) : null;
+                
+                $positionChangeMessage = $newPosition 
+                    ? "Your position has been changed to {$newPosition->name}."
+                    : "You have been removed from your position.";
+                
+                if ($oldPosition && $newPosition) {
+                    $positionChangeMessage = "Your position has been changed from {$oldPosition->name} to {$newPosition->name}.";
+                }
+                
+                Notification::createForUser(
+                    $employee->id,
+                    'position_change',
+                    'Position Updated',
+                    $positionChangeMessage
+                );
+            }
+            
+            // Format the response using the same method as other endpoints
+            $user = $request->user();
+            $formattedEmployee = $this->formatEmployeeResponse(collect([$updatedEmployee]), $user, $user->role, false)->first();
+            
             return response()->json([
                 'message' => 'Employee information updated successfully.',
-                'employee' => $employee->fresh()
+                'employee' => $formattedEmployee
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -419,6 +636,67 @@ class EmployeeController extends Controller
         ]);
     }
 
+    /**
+     * Serve private resume files securely using Laravel 12 Storage methods
+     */
+    public function serveResume(Request $request, User $employee)
+    {
+        $user = $request->user();
+        
+        // Only HR personnel or the employee themselves can access the resume
+        if ($user->role !== 'HR_PERSONNEL' && $user->id !== $employee->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        
+        // Check if employee has a resume file
+        if (!$employee->resume_file) {
+            return response()->json(['error' => 'Resume not found'], 404);
+        }
+        
+        // Use Storage::exists() to check if file exists
+        if (!Storage::disk('local')->exists($employee->resume_file)) {
+            return response()->json(['error' => 'Resume file not found'], 404);
+        }
+        
+        // Use Storage::get() to retrieve file content
+        $fileContent = Storage::disk('local')->get($employee->resume_file);
+        $fileName = basename($employee->resume_file);
+        $mimeType = Storage::disk('local')->mimeType($employee->resume_file);
+        
+        // Return file response with proper headers
+        return response($fileContent, 200, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            'Content-Length' => strlen($fileContent)
+        ]);
+    }
+
+    public function rehireEmployee(Request $request, User $employee)
+    {
+        $user = $request->user();
+        
+        // Only HR personnel can rehire employees
+        if ($user->role !== 'HR_PERSONNEL') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        
+        // Check if employee is resigned or terminated
+        if (!in_array($employee->employment_status, ['resigned', 'terminated'])) {
+            return response()->json(['error' => 'Employee is not resigned or terminated'], 400);
+        }
+        
+        // Reactivate the employee
+        $employee->update([
+            'employment_status' => 'active',
+            'account_status' => 'Active'
+        ]);
+        
+        return response()->json([
+            'message' => 'Employee rehired successfully',
+            'employee' => $employee->fresh()
+        ]);
+    }
+
     public function toggleTeamLeaderStatus(Request $request, User $employee)
     {
         $user = $request->user();
@@ -433,6 +711,7 @@ class EmployeeController extends Controller
 
         try {
             // Toggle between TEAM_LEADER and REGULAR_EMPLOYEE roles
+            $oldRole = $employee->role;
             $newRole = $employee->role === 'TEAM_LEADER' ? 'REGULAR_EMPLOYEE' : 'TEAM_LEADER';
             
             $employee->update(['role' => $newRole]);
@@ -440,6 +719,18 @@ class EmployeeController extends Controller
             $statusMessage = $newRole === 'TEAM_LEADER' 
                 ? "Employee '{$employee->name}' has been promoted to Team Leader."
                 : "Employee '{$employee->name}' has been changed to Regular Employee.";
+            
+            // Create notification for the employee about their role change
+            $notificationMessage = $newRole === 'TEAM_LEADER' 
+                ? "You have been promoted to Team Leader."
+                : "Your role has been changed from Team Leader to Regular Employee.";
+            
+            Notification::createForUser(
+                $employee->id,
+                'role_change',
+                'Role Updated',
+                $notificationMessage
+            );
             
             return response()->json([
                 'message' => $statusMessage,

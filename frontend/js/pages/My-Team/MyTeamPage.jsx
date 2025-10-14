@@ -237,7 +237,7 @@ const MyTeamPage = () => {
     return (
       <div className="container-fluid p-0 page-module-container">
         <div className="text-center p-5">
-          <div className="spinner-border text-primary" role="status">
+          <div className="spinner-border text-success" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
           <p className="mt-3 text-muted">Loading team data...</p>

@@ -20,6 +20,8 @@ use App\Http\Controllers\DisciplinaryCaseController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ResignationController;
 use App\Http\Controllers\TerminationController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ReportController;
 use App\Models\User;
 use App\Models\Position;
 
@@ -45,7 +47,7 @@ Route::post('/applicants', [ApplicantController::class, 'store']); // Add public
 Route::get('/positions', [PositionController::class, 'publicIndex']);
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     // User profile
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -67,24 +69,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/sessions/{sessionId}', [SessionController::class, 'destroy']);
     });
 
-    // Dashboard
-    Route::get('/dashboard', function () {
-        return response()->json([
-            'currentUser' => auth()->user(),
-            'userRole' => auth()->user()->role,
-        ]);
-    });
-
+    
     // Employee Data - with role-based access control
     Route::middleware(['role.access:employee,index'])->get('/employees', [EmployeeController::class, 'index']);
+    Route::middleware(['role.access:employee,index'])->get('/employees/list', [EmployeeController::class, 'getEmployeesList']);
     Route::middleware(['role.access:employee,index'])->get('/employees/all', [EmployeeController::class, 'getAllEmployees']);
     Route::middleware(['role.access:employee,show'])->get('/employees/{employee}', [EmployeeController::class, 'show']);
+    Route::middleware(['role.access:employee,show'])->get('/employees/{employee}/resume', [EmployeeController::class, 'serveResume'])->name('employee.resume');
     Route::middleware(['role.access:employee,store'])->post('/employees', [EmployeeController::class, 'store']);
     Route::middleware(['role.access:employee,update'])->put('/employees/{employee}', [EmployeeController::class, 'update']);
     Route::middleware(['role.access:employee,destroy'])->delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
     Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword']);
     Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/deactivate', [EmployeeController::class, 'deactivateAccount']);
     Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/activate', [EmployeeController::class, 'activateAccount']);
+    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/rehire', [EmployeeController::class, 'rehireEmployee']);
     Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/toggle-team-leader', [EmployeeController::class, 'toggleTeamLeaderStatus']);
 
     // Positions (authenticated routes) - with role-based access control
@@ -207,13 +205,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['role.access:disciplinary,index'])->get('/disciplinary-cases-statistics', [DisciplinaryCaseController::class, 'getStatistics']);
 
     // Resignation Management - with role-based access control
-    Route::middleware(['role.access:employee,index'])->get('/resignations', [ResignationController::class, 'index']);
-    Route::middleware(['role.access:employee,store'])->post('/resignations', [ResignationController::class, 'store']);
-    Route::middleware(['role.access:employee,view'])->get('/resignations/{resignation}', [ResignationController::class, 'show']);
-    Route::middleware(['role.access:employee,update'])->put('/resignations/{resignation}', [ResignationController::class, 'update']);
-    Route::middleware(['role.access:employee,destroy'])->delete('/resignations/{resignation}', [ResignationController::class, 'destroy']);
-    Route::middleware(['role.access:employee,update'])->put('/resignations/{resignation}/status', [ResignationController::class, 'updateStatus']);
-    Route::middleware(['role.access:employee,update'])->put('/resignations/{resignation}/effective-date', [ResignationController::class, 'updateEffectiveDate']);
+    Route::middleware(['role.access:resignation,index'])->get('/resignations', [ResignationController::class, 'index']);
+    Route::middleware(['role.access:resignation,store'])->post('/resignations', [ResignationController::class, 'store']);
+    Route::middleware(['role.access:resignation,view'])->get('/resignations/{resignation}', [ResignationController::class, 'show']);
+    Route::middleware(['role.access:resignation,update'])->put('/resignations/{resignation}', [ResignationController::class, 'update']);
+    Route::middleware(['role.access:resignation,destroy'])->delete('/resignations/{resignation}', [ResignationController::class, 'destroy']);
+    Route::middleware(['role.access:resignation,update'])->put('/resignations/{resignation}/status', [ResignationController::class, 'updateStatus']);
+    Route::middleware(['role.access:resignation,update'])->put('/resignations/{resignation}/effective-date', [ResignationController::class, 'updateEffectiveDate']);
 
     // Termination Management - with role-based access control
     Route::middleware(['role.access:employee,index'])->get('/terminations', [TerminationController::class, 'index']);
@@ -224,17 +222,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['role.access:employee,view'])->get('/terminations/employee/{employee}', [TerminationController::class, 'getByEmployee']);
     Route::middleware(['role.access:employee,index'])->get('/terminations/statistics', [TerminationController::class, 'getStatistics']);
 
-    // Reports - with role-based access control
-    Route::middleware(['role.access:employee,index'])->get('/reports/employees', [ReportController::class, 'employeeReport']);
-    Route::middleware(['role.access:attendance,index'])->get('/reports/attendance', [ReportController::class, 'attendanceReport']);
-    Route::middleware(['role.access:leave,index'])->get('/reports/leaves', [ReportController::class, 'leaveReport']);
-    Route::middleware(['role.access:payroll,index'])->get('/reports/payroll', [ReportController::class, 'payrollReport']);
-    Route::get('/reports', function () {
-        return response()->json([
-            'employees' => User::all(),
-            'positions' => [],
-        ]);
-    });
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::post('/notifications', [NotificationController::class, 'store']);
+
 
     // Logout
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy']);

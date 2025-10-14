@@ -37,6 +37,7 @@ class User extends Authenticatable
         'resume_file',
         'theme_preference',
         'account_status',
+        'attendance_status',
         'login_attempts',
         'last_failed_login',
         'locked_until',
@@ -148,5 +149,75 @@ class User extends Authenticatable
         ]);
 
         return $employee;
+    }
+
+    /**
+     * Calculate attendance rate for the employee based on their schedule assignments.
+     * Returns the percentage of attended vs scheduled days.
+     */
+    public function calculateAttendanceRate($days = 30)
+    {
+        $startDate = now()->subDays($days);
+        $endDate = now();
+
+        // Get all schedule assignments for this employee in the date range
+        $scheduleAssignments = $this->scheduleAssignments()
+            ->with(['schedule', 'attendance'])
+            ->whereHas('schedule', function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('date', [$startDate, $endDate]);
+            })
+            ->get();
+
+        if ($scheduleAssignments->isEmpty()) {
+            return 100; // No schedules means 100% attendance (no absences)
+        }
+
+        $totalScheduled = $scheduleAssignments->count();
+        $attendedCount = 0;
+
+        foreach ($scheduleAssignments as $assignment) {
+            $attendance = $assignment->attendance;
+            
+            if ($attendance) {
+                $status = $attendance->calculated_status;
+                // Count 'present' and 'late' as attended, 'absent' as not attended
+                if (in_array($status, ['present', 'late'])) {
+                    $attendedCount++;
+                }
+            } else {
+                // No attendance record for past dates means absent
+                $scheduleDate = $assignment->schedule->date;
+                if ($scheduleDate->isPast()) {
+                    // This is an absence (no attendance record for past date)
+                    continue; // Don't increment attendedCount
+                } else {
+                    // Future date, don't count against attendance rate
+                    $totalScheduled--; // Reduce total scheduled count
+                }
+            }
+        }
+
+        if ($totalScheduled <= 0) {
+            return 100; // No valid schedules to evaluate
+        }
+
+        return round(($attendedCount / $totalScheduled) * 100, 2);
+    }
+
+    /**
+     * Check if employee's attendance rate is below threshold and update status.
+     */
+    public function checkAndUpdateAttendanceStatus($threshold = 80)
+    {
+        $attendanceRate = $this->calculateAttendanceRate();
+        
+        if ($attendanceRate < $threshold) {
+            $this->update(['attendance_status' => 'Inactive']);
+            return true; // Status was updated
+        } else {
+            // If attendance improves, reset to Active
+            $this->update(['attendance_status' => 'Active']);
+            return false; // No status change needed
+        }
     }
 }

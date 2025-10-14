@@ -46,6 +46,12 @@ class Applicant extends Model
         return $name;
     }
 
+    // Get resume URL
+    public function getResumeUrlAttribute()
+    {
+        return $this->resume_file ? asset('storage/' . $this->resume_file) : null;
+    }
+
     // Convert applicant to employee data
     public function toEmployeeData($positionId, $employeeId = null)
     {

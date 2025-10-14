@@ -153,8 +153,12 @@
     background-color: rgba(var(--app-success-rgb), 0.1);
 }
 .status-badge-inactive {
-    color: var(--text-secondary);
-    background-color: var(--bg-tertiary);
+    color: var(--danger-color);
+    background-color: rgba(var(--danger-rgb), 0.1);
+}
+.status-badge-pending {
+    color: var(--warning-color);
+    background-color: rgba(var(--warning-rgb), 0.15);
 }
 .status-badge-complete {
     color: var(--app-success-color);
@@ -165,6 +169,9 @@
     background-color: rgba(var(--warning-rgb), 0.15);
 }
 .dark-theme .status-badge-incomplete {
+    color: var(--warning-color);
+}
+.dark-theme .status-badge-pending {
     color: var(--warning-color);
 }
 

@@ -6,6 +6,7 @@ const ConfirmationModal = ({
     onConfirm, 
     title, 
     children, 
+    message,
     confirmText = "Confirm", 
     confirmVariant = "danger" 
 }) => {
@@ -20,6 +21,7 @@ const ConfirmationModal = ({
             <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
           <div className="modal-body">
+            {message && <p>{message}</p>}
             {children}
           </div>
           <div className="modal-footer">

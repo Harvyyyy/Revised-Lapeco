@@ -70,6 +70,9 @@ class RoleBasedAccess
             case 'recruitment':
                 return $this->checkRecruitmentPermission($user, $action, $request);
             
+            case 'resignation':
+                return $this->checkResignationPermission($user, $action, $request);
+            
             default:
                 return false;
         }
@@ -380,5 +383,38 @@ class RoleBasedAccess
 
         // Return role-based generic message
         return $messages[$role] ?? 'Access denied.';
+    }
+
+    /**
+     * Check resignation-related permissions
+     */
+    private function checkResignationPermission($user, string $action, Request $request): bool
+    {
+        $role = $user->role;
+        
+        switch ($action) {
+            case 'view':
+            case 'index':
+                // HR can view all, Team Leaders can view team, Regular employees can view own
+                return in_array($role, ['HR_PERSONNEL', 'TEAM_LEADER', 'REGULAR_EMPLOYEE']);
+            
+            case 'create':
+            case 'store':
+                // All authenticated users can submit resignation requests
+                return true;
+            
+            case 'update':
+            case 'approve':
+                // HR can approve all, Team Leaders can approve team resignations
+                return in_array($role, ['HR_PERSONNEL', 'TEAM_LEADER']);
+            
+            case 'delete':
+            case 'destroy':
+                // HR can delete any, others can delete own pending requests
+                return true; // Additional logic needed in controller
+            
+            default:
+                return false;
+        }
     }
 }

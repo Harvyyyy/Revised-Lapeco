@@ -62,7 +62,7 @@ const NotificationDropdown = ({ notifications = [], handlers }) => {
           {groupedNotifications.length > 0 ? (
             groupedNotifications.map(group => (
               <div key={group.title} className="notification-group">
-                <h7 className="notification-group-title">{group.title}</h7>
+                <h6 className="notification-group-title">{group.title}</h6>
                 <ul className="notification-list">
                   {group.items.map(n => (
                     <NotificationItem 

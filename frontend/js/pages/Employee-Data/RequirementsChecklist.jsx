@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Doughnut } from 'react-chartjs-2';
+import { employeeAPI } from '../../services/api';
 import placeholderAvatar from '../../assets/placeholder-profile.jpg';
 
 const REQUIREMENTS_LIST = [
@@ -31,8 +32,45 @@ const FilterToggle = ({ label, reqKey, options, currentFilter, onFilterChange })
     </div>
 );
 
-const RequirementsChecklist = ({ employees }) => {
+const RequirementsChecklist = () => {
     const [filters, setFilters] = useState(getInitialFilters());
+    const [employees, setEmployees] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetchEmployeesData();
+    }, []);
+
+    const fetchEmployeesData = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            // Fetch complete employee data including government requirements
+            const response = await employeeAPI.getAll();
+            const employeesData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+            
+            // Transform the data to match the expected format
+            const transformedEmployees = employeesData.map(emp => ({
+                id: emp.id,
+                name: emp.name,
+                imageUrl: emp.image_url,
+                sssNo: emp.sss_no,
+                tinNo: emp.tin_no,
+                pagIbigNo: emp.pag_ibig_no,
+                philhealthNo: emp.philhealth_no,
+            }));
+            
+            setEmployees(transformedEmployees);
+        } catch (err) {
+            console.error('Error fetching employees data:', err);
+            setError('Failed to load employee data. Please try again.');
+            setEmployees([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
@@ -75,6 +113,36 @@ const RequirementsChecklist = ({ employees }) => {
     }, [processedEmployees]);
 
     const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '75%' };
+
+    if (loading) {
+        return (
+            <div className="requirements-checklist-container">
+                <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+                    <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="requirements-checklist-container">
+                <div className="alert alert-danger" role="alert">
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    {error}
+                    <button 
+                        className="btn btn-outline-danger btn-sm ms-3" 
+                        onClick={fetchEmployeesData}
+                    >
+                        <i className="bi bi-arrow-clockwise me-1"></i>
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="requirements-checklist-container">

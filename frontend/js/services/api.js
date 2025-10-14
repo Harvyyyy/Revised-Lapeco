@@ -17,6 +17,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // If the data is FormData, remove the Content-Type header to let the browser set it
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
@@ -84,14 +90,16 @@ export const dashboardAPI = {
 // Employee API calls
 export const employeeAPI = {
   getAll: () => api.get('/employees'),
+  getList: () => api.get('/employees/list'), // Optimized endpoint for list view
   getAllIncludingTerminated: () => api.get('/employees/all'),
   getById: (id) => api.get(`/employees/${id}`),
   create: (data) => api.post('/employees', data),
   update: (id, data) => api.put(`/employees/${id}`, data),
   delete: (id) => api.delete(`/employees/${id}`),
   resetPassword: (id, data) => api.post(`/employees/${id}/reset-password`, data),
-  deactivate: (id) => api.post(`/employees/${id}/deactivate`),
-  activate: (id) => api.post(`/employees/${id}/activate`),
+  deactivateAccount: (id) => api.post(`/employees/${id}/deactivate`),
+  activateAccount: (id) => api.post(`/employees/${id}/activate`),
+  rehireEmployee: (id) => api.post(`/employees/${id}/rehire`),
   toggleTeamLeader: (id) => api.post(`/employees/${id}/toggle-team-leader`),
 };
 
@@ -236,6 +244,18 @@ export const terminationAPI = {
 // Reports API calls
 export const reportsAPI = {
   getAll: () => api.get('/reports'),
+  getEmployeeReport: () => api.get('/reports/employees'),
+  getAttendanceReport: () => api.get('/reports/attendance'),
+};
+
+export const notificationAPI = {
+  getAll: () => api.get('/notifications'),
+  getUnread: () => api.get('/notifications/unread'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/mark-as-read`),
+  markAllAsRead: () => api.put('/notifications/mark-all-as-read'),
+  delete: (id) => api.delete(`/notifications/${id}`),
+  create: (data) => api.post('/notifications', data),
 };
 
 export default api;

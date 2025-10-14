@@ -4,16 +4,20 @@ import SideBar from './SideBar';
 import Header from './Header';
 import './Layout.css';
 import { useTheme } from '../contexts/ThemeContext';
+import { notificationAPI } from '../services/api';
 
 const MOBILE_BREAKPOINT = 992;
+const NOTIFICATION_POLL_INTERVAL = 30000; // 30 seconds
 
-const Layout = ({ onLogout = () => {}, userRole: userRoleProp, currentUser: currentUserProp, notifications = [], children }) => {
+const Layout = ({ onLogout = () => {}, userRole: userRoleProp, currentUser: currentUserProp, notifications: notificationsProp = [], children }) => {
   const [isMobileSidebarVisible, setIsMobileSidebarVisible] = useState(false);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < MOBILE_BREAKPOINT);
   const { theme, toggleTheme } = useTheme();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentUser, setCurrentUser] = useState(currentUserProp || null);
   const [userRole, setUserRole] = useState(userRoleProp || 'HR_PERSONNEL');
+  const [notifications, setNotifications] = useState(notificationsProp);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   useEffect(() => {
     // Initialize from localStorage if not provided via props
@@ -33,12 +37,95 @@ const Layout = ({ onLogout = () => {}, userRole: userRoleProp, currentUser: curr
     if (userRoleProp) setUserRole(userRoleProp);
   }, [currentUserProp, userRoleProp]);
 
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    try {
+      setIsLoadingNotifications(true);
+      const response = await notificationAPI.getAll();
+      if (response.data && response.data.data) {
+        // Transform backend notification format to frontend format
+        const transformedNotifications = response.data.data.map(notification => ({
+          id: notification.id,
+          type: notification.type || 'system_update',
+          message: notification.message,
+          timestamp: notification.created_at,
+          read: !!notification.read_at,
+          title: notification.title
+        }));
+        setNotifications(transformedNotifications);
+      }
+    } catch (error) {
+      console.error('🔔 Failed to fetch notifications:', error);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await notificationAPI.markAsRead(notificationId);
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, read: true }
+            : notification
+        )
+      );
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllNotificationsAsRead = async () => {
+    try {
+      await notificationAPI.markAllAsRead();
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, read: true }))
+      );
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
+  };
+
+  // Clear all notifications
+  const clearAllNotifications = async () => {
+    try {
+      // Delete all notifications from backend
+      const deletePromises = notifications.map(notification => 
+        notificationAPI.delete(notification.id)
+      );
+      await Promise.all(deletePromises);
+      setNotifications([]);
+    } catch (error) {
+      console.error('Failed to clear all notifications:', error);
+    }
+  };
+
+  // Initial fetch and polling setup
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+
+    // Initial fetch
+    fetchNotifications();
+
+    // Set up polling for new notifications
+    const pollInterval = setInterval(fetchNotifications, NOTIFICATION_POLL_INTERVAL);
+
+    return () => clearInterval(pollInterval);
+  }, []);
+
   const handleToggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
   const appLevelHandlers = {
-    toggleTheme
+    toggleTheme,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    clearAllNotifications
   };
 
   useEffect(() => {

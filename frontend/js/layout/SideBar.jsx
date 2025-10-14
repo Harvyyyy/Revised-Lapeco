@@ -32,6 +32,7 @@ const navItemsConfig = {
     { path: '/dashboard/my-leave', icon: 'bi-calendar-plus-fill', label: 'My Leave' },
     { path: '/dashboard/my-attendance', icon: 'bi-person-check-fill', label: 'My Attendance' },
     { path: '/dashboard/my-payroll/projection', icon: 'bi-wallet2', label: 'My Payroll' },
+    { path: '/dashboard/my-resignation', icon: 'bi-box-arrow-left', label: 'My Resignation' },
   ],
   [USER_ROLES.REGULAR_EMPLOYEE]: [
     { path: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard', exact: true },
@@ -40,6 +41,7 @@ const navItemsConfig = {
     { path: '/dashboard/my-attendance', icon: 'bi-person-check-fill', label: 'My Attendance' },
     { path: '/dashboard/my-payroll/projection', icon: 'bi-wallet2', label: 'My Payroll' },
     { path: '/dashboard/evaluate-leader', icon: 'bi-person-video2', label: 'Evaluate Leader' },
+    { path: '/dashboard/my-resignation', icon: 'bi-box-arrow-left', label: 'My Resignation' },
   ],
 };
 
