@@ -12,6 +12,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 // Import pages
 import Login from './pages/Authentication/Login';
 import ForcePasswordChange from './pages/Authentication/ForcePasswordChange';
+import ForgotPassword from './pages/Authentication/ForgotPassword';
+import ResetPassword from './pages/Authentication/ResetPassword';
 import Dashboard from './pages/Dashboard/Dashboard';
 import EmployeeDataPage from './pages/Employee-Data/EmployeeDataPage';
 import PositionsPage from './pages/Positions/PositionsPage';
@@ -41,6 +43,7 @@ import PredictiveAnalyticsPage from './pages/Predictive-Analytics/PredictiveAnal
 import LeaderboardsPage from './pages/Leaderboards/LeaderboardsPage';
 import ResignationManagementPage from './pages/Resignation-Management/ResignationManagementPage';
 import MyResignationPage from './pages/My-Resignation/MyResignationPage';
+import EmailVerificationHandler from './pages/Verify-Email/EmailVerificationHandler';
 import ErrorBoundary from './common/ErrorBoundary';
 
 // Import layout, context, and components
@@ -83,6 +86,9 @@ function App() {
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/force-password-change" element={<ForcePasswordChange />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<EmailVerificationHandler />} />
 
           {/* Protected routes */}
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

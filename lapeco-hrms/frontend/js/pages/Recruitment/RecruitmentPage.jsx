@@ -85,13 +85,14 @@ const RecruitmentPage = () => {
     fetchPositions();
   }, [positions.length]);
 
-  // Fetch applicants data
+  // Fetch applicants data (summary for list view)
   useEffect(() => {
     const fetchApplicants = async () => {
       try {
         setLoadingApplicants(true);
         setErrorApplicants(null);
-        const response = await applicantAPI.getAll();
+        // Use summary=true for recruitment page list view (minimal data)
+        const response = await applicantAPI.getAll(true);
         setApplicants(response.data || []);
       } catch (error) {
         setErrorApplicants('Failed to load applicants. Please try again.');

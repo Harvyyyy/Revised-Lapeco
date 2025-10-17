@@ -48,20 +48,20 @@ class EmployeeController extends Controller
         if ($role === 'HR_PERSONNEL') {
             // HR can see all employees except terminated/resigned ones
             $employees = User::whereNotIn('employment_status', ['terminated', 'resigned'])
-                           ->select('id', 'name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
-                           ->get();
+                        ->select('id', 'first_name', 'middle_name', 'last_name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
+                        ->get();
         } elseif ($role === 'TEAM_LEADER') {
             // Team leaders can see employees with the same position_id, excluding terminated/resigned
             $employees = User::where('position_id', $user->position_id)
-                           ->whereNotIn('employment_status', ['terminated', 'resigned'])
-                           ->select('id', 'name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
-                           ->get();
+                        ->whereNotIn('employment_status', ['terminated', 'resigned'])
+                        ->select('id', 'first_name', 'middle_name', 'last_name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
+                        ->get();
         } else {
             // Regular employees can see employees in their position, excluding terminated/resigned
             $employees = User::where('position_id', $user->position_id)
-                           ->whereNotIn('employment_status', ['terminated', 'resigned'])
-                           ->select('id', 'name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
-                           ->get();
+                        ->whereNotIn('employment_status', ['terminated', 'resigned'])
+                        ->select('id', 'first_name', 'middle_name', 'last_name', 'email', 'position_id', 'joining_date', 'attendance_status', 'image_url', 'account_status')
+                        ->get();
         }
         
         // Get positions for mapping
@@ -71,9 +71,16 @@ class EmployeeController extends Controller
         
         // Format limited response data
         $employees = $employees->map(function ($employee) use ($positions) {
+            // Compute full name from name components
+            $fullName = trim(implode(' ', array_filter([
+                $employee->first_name,
+                $employee->middle_name,
+                $employee->last_name,
+            ])));
+            
             return [
                 'id' => $employee->id,
-                'name' => $employee->name,
+                'name' => $fullName,
                 'email' => $employee->email,
                 'position_id' => $employee->position_id,
                 'position' => $positions[$employee->position_id] ?? 'Unassigned',
@@ -168,7 +175,14 @@ class EmployeeController extends Controller
         
         $data = [
             'id' => $employee->id,
-            'name' => $employee->name,
+            'first_name' => $employee->first_name,
+            'middle_name' => $employee->middle_name,
+            'last_name' => $employee->last_name,
+            'name' => trim(implode(' ', array_filter([
+                $employee->first_name,
+                $employee->middle_name,
+                $employee->last_name,
+            ]))),
             'email' => $employee->email,
             'role' => $employee->role,
             'employee_id' => $employee->employee_id,
@@ -230,9 +244,31 @@ class EmployeeController extends Controller
             \Log::info('No file uploaded in request BEFORE validation');
         }
         
+        if ($request->filled('name')) {
+            [$first, $middle, $last] = User::splitFullName($request->input('name'));
+
+            $nameComponents = [];
+            if (!$request->filled('first_name')) {
+                $nameComponents['first_name'] = $first;
+            }
+            if (!$request->has('middle_name')) {
+                $nameComponents['middle_name'] = $middle;
+            }
+            if (!$request->filled('last_name')) {
+                $nameComponents['last_name'] = $last;
+            }
+
+            if (!empty($nameComponents)) {
+                $request->merge($nameComponents);
+            }
+        }
+
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:255',
+                'middle_name' => 'nullable|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'name' => 'sometimes|string|max:255',
                 'email' => 'required|email|unique:users,email',
                 'role' => 'required|string|in:HR_PERSONNEL,TEAM_LEADER,REGULAR_EMPLOYEE',
                 'position_id' => 'nullable|exists:positions,id',
@@ -280,11 +316,10 @@ class EmployeeController extends Controller
             $specificMessages = [];
             foreach ($errors as $field => $fieldErrors) {
                 switch ($field) {
-                    case 'name':
-                        $specificMessages[] = 'Employee name is required and must be valid';
+                    case 'first_name':
+                        $specificMessages[] = 'First name is required and must be valid';
                         break;
-                    case 'email':
-                        $specificMessages[] = 'A valid email address is required';
+                    case 'middle_name':
                         break;
                     case 'role':
                         $specificMessages[] = 'Please select a valid employee role';
@@ -412,23 +447,45 @@ class EmployeeController extends Controller
                 }
             }
             
+            // Compose data for user creation
+            $userData = $validated;
+
+            if (isset($userData['name'])) {
+                [$first, $middle, $last] = User::splitFullName($userData['name']);
+                $userData['first_name'] = $userData['first_name'] ?? $first;
+                if (!array_key_exists('middle_name', $userData) || $userData['middle_name'] === null) {
+                    $userData['middle_name'] = $middle;
+                }
+                $userData['last_name'] = $userData['last_name'] ?? $last;
+                unset($userData['name']);
+            }
+
             // Add default values for required fields
-            $validated['password'] = Hash::make('temporary'); // Temporary password, will be updated after creation
-            $validated['password_changed'] = false;
-            $validated['account_status'] = $validated['account_status'] ?? 'Active';
-            
+            $userData['password'] = Hash::make('temporary'); // Temporary password, will be updated after creation
+            $userData['password_changed'] = false;
+            $userData['account_status'] = $userData['account_status'] ?? 'Active';
+
             // Add resume file path if it was uploaded
             if ($resumeFile) {
-                $validated['resume_file'] = $resumeFile;
+                $userData['resume_file'] = $resumeFile;
             }
-            
+
             // Add profile picture path if it was uploaded
             if ($profilePicturePath) {
-                $validated['image_url'] = $profilePicturePath;
+                $userData['image_url'] = $profilePicturePath;
             }
-            
+
+            $userData['name'] = trim(implode(' ', array_filter([
+                $userData['first_name'] ?? null,
+                $userData['middle_name'] ?? null,
+                $userData['last_name'] ?? null,
+            ])));
+
             // Create employee first to get the ID
-            $employee = User::create($validated);
+            $employee = new User();
+            $employee->fillNameComponents($userData);
+            $employee->fill(array_diff_key($userData, array_flip(['first_name', 'middle_name', 'last_name', 'name'])));
+            $employee->save();
             
             // Generate password as 'lapeco+id' and update it
             $defaultPassword = 'lapeco' . $employee->id;
@@ -467,7 +524,29 @@ class EmployeeController extends Controller
         // Authorization is now handled by middleware, but we still need user context for data filtering
         
         try {
+            if ($request->filled('name')) {
+                [$first, $middle, $last] = User::splitFullName($request->input('name'));
+
+                $nameComponents = [];
+                if (!$request->has('first_name')) {
+                    $nameComponents['first_name'] = $first;
+                }
+                if (!$request->has('middle_name')) {
+                    $nameComponents['middle_name'] = $middle;
+                }
+                if (!$request->has('last_name')) {
+                    $nameComponents['last_name'] = $last;
+                }
+
+                if (!empty($nameComponents)) {
+                    $request->merge($nameComponents);
+                }
+            }
+
             $validated = $request->validate([
+                'first_name' => 'sometimes|string|max:255',
+                'middle_name' => 'sometimes|nullable|string|max:255',
+                'last_name' => 'sometimes|string|max:255',
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|email|unique:users,email,' . $employee->id,
                 'role' => 'sometimes|string|in:HR_PERSONNEL,TEAM_LEADER,REGULAR_EMPLOYEE',
@@ -648,6 +727,34 @@ class EmployeeController extends Controller
             $originalRole = $employee->role;
             $originalPositionId = $employee->position_id;
             
+            $nameData = [];
+            if (array_key_exists('first_name', $validated)) {
+                $nameData['first_name'] = $validated['first_name'];
+                unset($validated['first_name']);
+            }
+            if (array_key_exists('middle_name', $validated)) {
+                $nameData['middle_name'] = $validated['middle_name'];
+                unset($validated['middle_name']);
+            }
+            if (array_key_exists('last_name', $validated)) {
+                $nameData['last_name'] = $validated['last_name'];
+                unset($validated['last_name']);
+            }
+
+            if (isset($validated['name'])) {
+                [$first, $middle, $last] = User::splitFullName($validated['name']);
+                $nameData = $nameData + array_filter([
+                    'first_name' => $first,
+                    'middle_name' => $middle,
+                    'last_name' => $last,
+                ], fn ($value) => $value !== null);
+                unset($validated['name']);
+            }
+
+            if (!empty($nameData)) {
+                $employee->fillNameComponents($nameData);
+            }
+
             $employee->update($validated);
             
             // Check if role or position changed and create notifications
@@ -707,69 +814,6 @@ class EmployeeController extends Controller
         }
     }
 
-    public function resetPassword(Request $request, User $employee)
-    {
-        $user = $request->user();
-        
-        // Only HR personnel can reset passwords
-        if ($user->role !== 'HR_PERSONNEL') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        
-        // Generate the default password: lapeco + employee ID
-        $defaultPassword = 'lapeco' . $employee->id;
-        
-        // Update the employee's password and set password_changed to false
-        $employee->update([
-            'password' => Hash::make($defaultPassword),
-            'password_changed' => false
-        ]);
-        
-        return response()->json([
-            'message' => 'Password reset successfully',
-            'employee' => $employee->fresh(),
-            'new_password' => $defaultPassword
-        ]);
-    }
-
-    public function deactivateAccount(Request $request, User $employee)
-    {
-        $user = $request->user();
-        
-        // Only HR personnel can deactivate accounts
-        if ($user->role !== 'HR_PERSONNEL') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        
-        // Prevent HR from deactivating their own account
-        if ($user->id === $employee->id) {
-            return response()->json(['error' => 'You cannot deactivate your own account'], 400);
-        }
-        
-        $employee->update(['account_status' => 'Deactivated']);
-        
-        return response()->json([
-            'message' => 'Account deactivated successfully',
-            'employee' => $employee->fresh()
-        ]);
-    }
-
-    public function activateAccount(Request $request, User $employee)
-    {
-        $user = $request->user();
-        
-        // Only HR personnel can activate accounts
-        if ($user->role !== 'HR_PERSONNEL') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        
-        $employee->update(['account_status' => 'Active']);
-        
-        return response()->json([
-            'message' => 'Account activated successfully',
-            'employee' => $employee->fresh()
-        ]);
-    }
 
     /**
      * Return HTML error response for iframe display

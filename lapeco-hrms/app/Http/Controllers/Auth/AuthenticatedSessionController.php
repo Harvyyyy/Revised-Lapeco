@@ -18,19 +18,22 @@ class AuthenticatedSessionController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'login' => 'required|string', // Changed from 'email' to 'login' to accept both
             'password' => 'required',
         ]);
 
-        // Find the user by email
-        $user = User::where('email', $request->email)->first();
+        // Determine if login field is email or username
+        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+        
+        // Find the user by email or username
+        $user = User::where($loginField, $request->login)->first();
 
         // Check if user exists and if account is locked
         if ($user) {
             // Check if account is deactivated
             if ($user->account_status === 'Deactivated') {
                 throw ValidationException::withMessages([
-                    'email' => ['Your account has been deactivated. Please contact HR personnel for assistance.'],
+                    'login' => ['Your account has been deactivated. Please contact HR personnel for assistance.'],
                 ]);
             }
 
@@ -38,12 +41,12 @@ class AuthenticatedSessionController extends Controller
             if ($user->locked_until && now()->lt($user->locked_until)) {
                 $timeRemaining = now()->diffInSeconds($user->locked_until);
                 throw ValidationException::withMessages([
-                    'email' => ["Your account is temporarily locked. Please try again after {$timeRemaining} seconds."],
+                    'login' => ["Your account is temporarily locked. Please try again after {$timeRemaining} seconds."],
                 ]);
             }
 
             // Attempt authentication
-            if (!Auth::attempt($request->only('email', 'password'))) {
+            if (!Auth::attempt([$loginField => $request->login, 'password' => $request->password])) {
                 // Failed login attempt
                 $user->login_attempts = ($user->login_attempts ?? 0) + 1;
                 $user->last_failed_login = now();
@@ -63,7 +66,7 @@ class AuthenticatedSessionController extends Controller
                         : "Too many failed login attempts. Your account has been locked for {$lockoutSeconds} seconds.";
                     
                     throw ValidationException::withMessages([
-                        'email' => [$lockoutMessage],
+                        'login' => [$lockoutMessage],
                     ]);
                 }
                 
@@ -73,11 +76,11 @@ class AuthenticatedSessionController extends Controller
                 $remainingAttempts = 5 - $user->login_attempts;
                 if ($user->login_attempts >= 2) {
                     throw ValidationException::withMessages([
-                        'email' => ["The provided credentials are incorrect. You have {$remainingAttempts} attempts left before your account is locked."],
+                        'login' => ["The provided credentials are incorrect. You have {$remainingAttempts} attempts left before your account is locked."],
                     ]);
                 } else {
                     throw ValidationException::withMessages([
-                        'email' => ['The provided credentials are incorrect.'],
+                        'login' => ['The provided credentials are incorrect.'],
                     ]);
                 }
             }
@@ -100,7 +103,7 @@ class AuthenticatedSessionController extends Controller
         
         // User not found
         throw ValidationException::withMessages([
-            'email' => ['The provided credentials are incorrect.'],
+            'login' => ['The provided credentials are incorrect.'],
         ]);
     }
 

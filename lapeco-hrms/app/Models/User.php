@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Notifications\CustomVerifyEmail;
+use App\Notifications\CustomResetPassword;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
@@ -19,7 +22,10 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'username',
         'email',
         'password',
         'role',
@@ -222,6 +228,71 @@ class User extends Authenticatable
     }
 
     /**
+     * Update composite name field based on components.
+     */
+    public function setFullNameFromComponents(): string
+    {
+        $parts = array_filter([
+            $this->first_name,
+            $this->middle_name,
+            $this->last_name,
+        ]);
+
+        return trim(implode(' ', $parts));
+    }
+
+    /**
+     * Split a full name string into first, middle, and last components.
+     */
+    public static function splitFullName(?string $name): array
+    {
+        $name = trim((string) $name);
+
+        if ($name === '') {
+            return [null, null, null];
+        }
+
+        $parts = preg_split('/\s+/', $name);
+        $first = array_shift($parts) ?? null;
+        $last = array_pop($parts) ?? null;
+        $middle = $parts ? implode(' ', $parts) : null;
+
+        if ($last === null) {
+            $last = null;
+        }
+
+        return [$first, $middle, $last];
+    }
+
+    /**
+     * Set individual name parts from provided data, keeping backwards compatibility.
+     */
+    public function fillNameComponents(array $data): void
+    {
+        if (isset($data['first_name'])) {
+            $this->first_name = $data['first_name'];
+        }
+        if (array_key_exists('middle_name', $data)) {
+            $this->middle_name = $data['middle_name'];
+        }
+        if (isset($data['last_name'])) {
+            $this->last_name = $data['last_name'];
+        }
+
+        $this->setFullNameFromComponents();
+    }
+
+    /**
+     * Accessor for the virtual name attribute.
+     */
+    protected function name(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->setFullNameFromComponents()
+        );
+    }
+
+    /**
      * Check if employee's attendance rate is below threshold and update status.
      */
     public function checkAndUpdateAttendanceStatus($threshold = 80)
@@ -236,5 +307,21 @@ class User extends Authenticatable
             $this->update(['attendance_status' => 'Active']);
             return false; // No status change needed
         }
+    }
+
+    /**
+     * Send the email verification notification.
+     */
+    public function sendEmailVerificationNotification()
+    {
+        $this->notify(new CustomVerifyEmail);
+    }
+
+    /**
+     * Send the password reset notification.
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new CustomResetPassword($token));
     }
 }

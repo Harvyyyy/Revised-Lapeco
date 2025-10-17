@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('first_name');
+            $table->string('middle_name')->nullable();
+            $table->string('last_name');
+            $table->string('username')->unique()->nullable();
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
@@ -32,6 +35,7 @@ return new class extends Migration
             $table->string('resume_file')->nullable();
             $table->enum('theme_preference', ['light', 'dark'])->default('light');
             $table->enum('account_status', ['Active', 'Deactivated'])->default('Active');
+            $table->string('attendance_status')->nullable();
             $table->enum('employment_status', ['active', 'resigned', 'terminated'])->default('active');
             $table->integer('login_attempts')->default(0);
             $table->timestamp('last_failed_login')->nullable();

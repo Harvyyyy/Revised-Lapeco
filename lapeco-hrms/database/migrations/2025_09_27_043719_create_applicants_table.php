@@ -22,6 +22,7 @@ return new class extends Migration
             $table->enum('gender', ['Male', 'Female', 'Other'])->nullable();
             $table->unsignedBigInteger('job_opening_id');
             $table->string('resume_file')->nullable();
+            $table->string('profile_picture')->nullable();
             $table->string('sss_no')->nullable();
             $table->string('tin_no')->nullable();
             $table->string('pag_ibig_no')->nullable();

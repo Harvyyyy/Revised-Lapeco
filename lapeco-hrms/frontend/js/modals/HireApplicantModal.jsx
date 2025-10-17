@@ -5,14 +5,14 @@ const HireApplicantModal = ({ show, onClose, onHire, applicant, positions, valid
   const [joiningDate, setJoiningDate] = useState(new Date().toISOString().split('T')[0]);
   const [error, setError] = useState('');
 
-  // Reset form when modal opens
   useEffect(() => {
     if (show) {
-      setPositionId('');
+      const defaultPositionId = applicant?.job_opening_id || '';
+      setPositionId(defaultPositionId.toString());
       setJoiningDate(new Date().toISOString().split('T')[0]);
       setError('');
     }
-  }, [show]);
+  }, [show, applicant]);
   
 
   const handleHire = async () => {

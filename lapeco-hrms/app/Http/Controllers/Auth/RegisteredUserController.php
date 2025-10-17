@@ -32,16 +32,18 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255|unique:'.User::class.'|regex:/^[a-zA-Z0-9_]+$/',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => ['sometimes', 'string', 'in:HR_PERSONNEL,TEAM_LEADER,REGULAR_EMPLOYEE'], // Add this line
+            'role' => ['sometimes', 'string', 'in:HR_PERSONNEL,TEAM_LEADER,REGULAR_EMPLOYEE'],
         ]);
 
         $user = User::create([
             'name' => $request->name,
+            'username' => $request->username,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->input('role', 'HR_PERSONNEL'), // Add this line
+            'role' => $request->input('role', 'HR_PERSONNEL'),
         ]);
 
         event(new Registered($user));

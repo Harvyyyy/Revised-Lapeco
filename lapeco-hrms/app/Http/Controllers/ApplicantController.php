@@ -41,12 +41,39 @@ class ApplicantController extends Controller
             });
         }
 
-        $applicants = $query->orderBy('application_date', 'desc')->get();
+        // Check if summary view is requested (for recruitment page list)
+        $isSummary = $request->has('summary') && $request->summary === 'true';
 
-        // Append the full_name attribute to each applicant
-        $applicants->each(function ($applicant) {
-            $applicant->append(['full_name', 'resume_url', 'profile_picture_url']);
-        });
+        if ($isSummary) {
+            // Return minimal data for recruitment page list/board view
+            $applicants = $query->select([
+                'id',
+                'first_name', 
+                'middle_name', 
+                'last_name',
+                'phone',
+                'gender',
+                'birthday',
+                'status',
+                'application_date',
+                'updated_at',
+                'interview_schedule',
+                'job_opening_id'
+            ])->orderBy('application_date', 'desc')->get();
+
+            // Add only essential computed attributes for list view
+            $applicants->each(function ($applicant) {
+                $applicant->append(['full_name']);
+            });
+        } else {
+            // Return full data (for details view or other uses)
+            $applicants = $query->orderBy('application_date', 'desc')->get();
+
+            // Append all attributes including file URLs
+            $applicants->each(function ($applicant) {
+                $applicant->append(['full_name', 'resume_url', 'profile_picture_url']);
+            });
+        }
 
         return response()->json($applicants);
     }

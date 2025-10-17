@@ -6,7 +6,8 @@ import ResumeIframe from '../common/ResumeIframe';
 
 const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, viewOnly, onSwitchToEdit }) => {
   const initialFormState = {
-    name: '', email: '', positionId: '',
+    firstName: '', middleName: '', lastName: '',
+    email: '', positionId: '',
     joiningDate: new Date().toISOString().split('T')[0],
     birthday: '', gender: '', address: '', contactNumber: '',
     imageUrl: null, imagePreviewUrl: placeholderImage,
@@ -28,21 +29,23 @@ const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, 
       setIsViewMode(viewOnly);
       if (isEditMode && employeeData) {
         setFormData({
-          name: employeeData.name || '',
+          firstName: employeeData.first_name || '',
+          middleName: employeeData.middle_name || '',
+          lastName: employeeData.last_name || '',
           email: employeeData.email || '',
-          positionId: employeeData.positionId || '',
-          joiningDate: employeeData.joiningDate || new Date().toISOString().split('T')[0],
+          positionId: employeeData.position_id || '',
+          joiningDate: employeeData.joining_date || new Date().toISOString().split('T')[0],
           birthday: employeeData.birthday || '',
           gender: employeeData.gender || '',
           address: employeeData.address || '',
-          contactNumber: employeeData.contactNumber || '',
-          imageUrl: employeeData.imageUrl || null,
-          imagePreviewUrl: employeeData.imageUrl || placeholderImage,
-          sssNo: employeeData.sssNo || '',
-          tinNo: employeeData.tinNo || '',
-          pagIbigNo: employeeData.pagIbigNo || '',
-          philhealthNo: employeeData.philhealthNo || '',
-          status: employeeData.status || 'Active',
+          contactNumber: employeeData.contact_number || '',
+          imageUrl: employeeData.profile_picture_url || null,
+          imagePreviewUrl: employeeData.profile_picture_url || placeholderImage,
+          sssNo: employeeData.sss_no || '',
+          tinNo: employeeData.tin_no || '',
+          pagIbigNo: employeeData.pag_ibig_no || '',
+          philhealthNo: employeeData.philhealth_no || '',
+          status: employeeData.account_status || 'Active',
           resumeFile: null,
           resumeUrl: employeeData.resumeUrl || null,
         });
@@ -88,7 +91,8 @@ const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, 
 
   const validateForm = () => {
     const errors = {};
-    if (!formData.name.trim()) errors.name = 'Name is required.';
+    if (!formData.firstName.trim()) errors.firstName = 'First name is required.';
+    if (!formData.lastName.trim()) errors.lastName = 'Last name is required.';
     if (!formData.email.trim()) { errors.email = 'Email is required.'; } 
     else if (!/\S+@\S+\.\S+/.test(formData.email)) { errors.email = 'Email address is invalid.';}
     if (!isEditMode && !formData.positionId) errors.positionId = 'Position is required.';
@@ -103,6 +107,15 @@ const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, 
     setIsSubmitting(true);
     const dataToSave = { ...formData };
     delete dataToSave.imagePreviewUrl;
+    dataToSave.name = [formData.firstName, formData.middleName, formData.lastName].filter(Boolean).join(' ').trim();
+    dataToSave.first_name = formData.firstName;
+    dataToSave.middle_name = formData.middleName || null;
+    dataToSave.last_name = formData.lastName;
+
+    if (!formData.middleName) {
+      delete dataToSave.middleName;
+    }
+
     try {
       await onSave(dataToSave, employeeData?.id);
       onClose();
@@ -137,10 +150,50 @@ const AddEditEmployeeModal = ({ show, onClose, onSave, employeeData, positions, 
                   </div>
                   <input type="file" ref={fileInputRef} name="imageUrl" accept="image/*" onChange={handleChange} className="d-none" disabled={isViewMode} />
 
-                  <div className="form-group">
-                    <label htmlFor="name" className="form-label">Full Name*</label>
-                    <input type="text" className={`form-control ${formErrors.name ? 'is-invalid' : ''}`} id="name" name="name" value={formData.name} onChange={handleChange} required disabled={isViewMode} />
-                    {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
+                  <div className="row g-2">
+                    <div className="col-12">
+                      <label className="form-label">Name*</label>
+                    </div>
+                    <div className="col-md-5">
+                      <input
+                        type="text"
+                        className={`form-control ${formErrors.firstName ? 'is-invalid' : ''}`}
+                        id="firstName"
+                        name="firstName"
+                        placeholder="First Name"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        required
+                        disabled={isViewMode}
+                      />
+                      {formErrors.firstName && <div className="invalid-feedback">{formErrors.firstName}</div>}
+                    </div>
+                    <div className="col-md-3">
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="middleName"
+                        name="middleName"
+                        placeholder="Middle Name"
+                        value={formData.middleName}
+                        onChange={handleChange}
+                        disabled={isViewMode}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <input
+                        type="text"
+                        className={`form-control ${formErrors.lastName ? 'is-invalid' : ''}`}
+                        id="lastName"
+                        name="lastName"
+                        placeholder="Last Name"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        required
+                        disabled={isViewMode}
+                      />
+                      {formErrors.lastName && <div className="invalid-feedback">{formErrors.lastName}</div>}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label htmlFor="positionId" className="form-label">Position*</label>

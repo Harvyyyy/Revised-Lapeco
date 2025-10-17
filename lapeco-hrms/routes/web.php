@@ -16,7 +16,6 @@ Route::get('/', function () {
     return view('api-docs');
 });
 
-// Redirect all dashboard routes to API documentation
-Route::get('/dashboard{any}', function () {
-    return redirect('/');
+Route::any('{any}', function () {
+    view('api-docs');
 })->where('any', '.*');
