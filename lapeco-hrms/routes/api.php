@@ -4,6 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\AccountController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\ScheduleController;
@@ -39,6 +41,8 @@ use App\Models\Position;
 // Public routes
 Route::post('/login', [AuthenticatedSessionController::class, 'store']);
 Route::post('/register', [RegisteredUserController::class, 'store']);
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail']);
+Route::post('/reset-password', [PasswordResetController::class, 'reset']);
 
 // Public recruitment routes for testing
 Route::get('/applicants/statistics', [ApplicantController::class, 'getStats']);
@@ -49,7 +53,10 @@ Route::get('/positions', [PositionController::class, 'publicIndex']);
 // Resume serving route (handles auth internally)
 Route::get('/employees/{employee}/resume', [EmployeeController::class, 'serveResume'])->name('employee.resume');
 
-// Protected routes
+Route::get('/email/verify/{id}/{hash}', [ProfileController::class, 'verifyEmail'])
+    ->middleware(['signed', 'throttle:1,1'])
+    ->name('verification.verify');
+
 Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     // User profile
     Route::get('/user', function (Request $request) {
@@ -66,6 +73,9 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     // Password change
     Route::put('/password', [\App\Http\Controllers\Auth\PasswordController::class, 'update']);
 
+    // Email verification routes
+    Route::post('/email/verification-notification', [ProfileController::class, 'sendVerificationNotification']);
+
     // Session management routes
     Route::middleware('web')->group(function () {
         Route::get('/sessions', [SessionController::class, 'index']);
@@ -81,9 +91,9 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::middleware(['role.access:employee,store'])->post('/employees', [EmployeeController::class, 'store']);
     Route::middleware(['role.access:employee,update'])->put('/employees/{employee}', [EmployeeController::class, 'update']);
     Route::middleware(['role.access:employee,destroy'])->delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
-    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword']);
-    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/deactivate', [EmployeeController::class, 'deactivateAccount']);
-    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/activate', [EmployeeController::class, 'activateAccount']);
+    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/reset-password', [AccountController::class, 'resetPassword']);
+    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/deactivate', [AccountController::class, 'deactivateAccount']);
+    Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/activate', [AccountController::class, 'activateAccount']);
     Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/rehire', [EmployeeController::class, 'rehireEmployee']);
     Route::middleware(['role.access:employee,update'])->post('/employees/{employee}/toggle-team-leader', [EmployeeController::class, 'toggleTeamLeaderStatus']);
 

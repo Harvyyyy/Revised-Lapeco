@@ -55,86 +55,110 @@ class DatabaseSeeder extends Seeder
         }
 
         // Seed users, at least one for each position
-        \App\Models\User::factory()->create([
-            'name' => 'HR Personnel',
-            'email' => 'hr@example.com',
-            'role' => 'HR_PERSONNEL',
-            'position_id' => $positionIds['HR Personnel'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Packer Team Leader',
-            'email' => 'packer.leader@example.com',
-            'role' => 'TEAM_LEADER',
-            'position_id' => $positionIds['Packer'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Lifter Team Leader',
-            'email' => 'lifter.leader@example.com',
-            'role' => 'TEAM_LEADER',
-            'position_id' => $positionIds['Lifter'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Picker Team Leader',
-            'email' => 'picker.leader@example.com',
-            'role' => 'TEAM_LEADER',
-            'position_id' => $positionIds['Picker'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Mover Team Leader',
-            'email' => 'mover.leader@example.com',
-            'role' => 'TEAM_LEADER',
-            'position_id' => $positionIds['Mover'],
-            'account_status' => 'Deactivated',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Packer',
-            'email' => 'packer@example.com',
-            'role' => 'REGULAR_EMPLOYEE',
-            'position_id' => $positionIds['Packer'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Lifter',
-            'email' => 'lifter@example.com',
-            'role' => 'REGULAR_EMPLOYEE',
-            'position_id' => $positionIds['Lifter'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Picker',
-            'email' => 'picker@example.com',
-            'role' => 'REGULAR_EMPLOYEE',
-            'position_id' => $positionIds['Picker'],
-            'account_status' => 'Deactivated',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Mover',
-            'email' => 'mover@example.com',
-            'role' => 'REGULAR_EMPLOYEE',
-            'position_id' => $positionIds['Mover'],
-            'account_status' => 'Active',
-        ]);
-        \App\Models\User::factory()->create([
-            'name' => 'Lemuel Ellasus',
-            'email' => 'lemuel_ellasus1@gmail.com',
-            'role' => 'HR_PERSONNEL',
-            'position_id' => $positionIds['HR Personnel'],
-            'account_status' => 'Active',
-        ]);
+        $seedUsers = [
+            [
+                'first_name' => 'HR',
+                'middle_name' => null,
+                'last_name' => 'Personnel',
+                'email' => 'hr@example.com',
+                'role' => 'HR_PERSONNEL',
+                'position_id' => $positionIds['HR Personnel'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Packer',
+                'middle_name' => null,
+                'last_name' => 'Leader',
+                'email' => 'packer.leader@example.com',
+                'role' => 'TEAM_LEADER',
+                'position_id' => $positionIds['Packer'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Lifter',
+                'middle_name' => null,
+                'last_name' => 'Leader',
+                'email' => 'lifter.leader@example.com',
+                'role' => 'TEAM_LEADER',
+                'position_id' => $positionIds['Lifter'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Picker',
+                'middle_name' => null,
+                'last_name' => 'Leader',
+                'email' => 'picker.leader@example.com',
+                'role' => 'TEAM_LEADER',
+                'position_id' => $positionIds['Picker'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Mover',
+                'middle_name' => null,
+                'last_name' => 'Leader',
+                'email' => 'mover.leader@example.com',
+                'role' => 'TEAM_LEADER',
+                'position_id' => $positionIds['Mover'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Packer',
+                'middle_name' => null,
+                'last_name' => 'Employee',
+                'email' => 'packer@example.com',
+                'role' => 'REGULAR_EMPLOYEE',
+                'position_id' => $positionIds['Packer'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Lifter',
+                'middle_name' => null,
+                'last_name' => 'Employee',
+                'email' => 'lifter@example.com',
+                'role' => 'REGULAR_EMPLOYEE',
+                'position_id' => $positionIds['Lifter'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Picker',
+                'middle_name' => null,
+                'last_name' => 'Employee',
+                'email' => 'picker@example.com',
+                'role' => 'REGULAR_EMPLOYEE',
+                'position_id' => $positionIds['Picker'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Mover',
+                'middle_name' => null,
+                'last_name' => 'Employee',
+                'email' => 'mover@example.com',
+                'role' => 'REGULAR_EMPLOYEE',
+                'position_id' => $positionIds['Mover'],
+                'account_status' => 'Active',
+            ],
+            [
+                'first_name' => 'Lemuel',
+                'middle_name' => 'John',
+                'last_name' => 'Ellasus',
+                'email' => 'lemuelellasus1@gmail.com',
+                'role' => 'HR_PERSONNEL',
+                'position_id' => $positionIds['HR Personnel'],
+                'account_status' => 'Active',
+            ],
+        ];
+
+        foreach ($seedUsers as $userData) {
+            \App\Models\User::factory()->create($userData);
+        }
 
         // Create additional users distributed among positions
         $allPositionIds = array_values($positionIds);
         \App\Models\User::factory(65)->create()->each(function ($user) use ($allPositionIds) {
             $role = rand(1, 10) === 1 ? 'TEAM_LEADER' : 'REGULAR_EMPLOYEE'; // ~10% team leaders
-            $accountStatus = rand(1, 5) === 1 ? 'Deactivated' : 'Active'; // ~20% deactivated
             $user->update([
                 'role' => $role,
                 'position_id' => $allPositionIds[array_rand($allPositionIds)],
-                'account_status' => $accountStatus,
             ]);
         });
 
@@ -439,12 +463,10 @@ class DatabaseSeeder extends Seeder
             }
         }
 
-        // Seed attendance data
-        $this->call(AttendanceSeeder::class);
         
         // Seed applicant data
         $this->call(ApplicantSeeder::class);
-
+        
         // Seed schedule template data
         $this->call(ScheduleTemplateSeeder::class);
         
@@ -454,13 +476,16 @@ class DatabaseSeeder extends Seeder
         // Seed schedule assignment data
         $this->call(ScheduleAssignmentSeeder::class);
         
+        // Seed attendance data
+        $this->call(AttendanceSeeder::class);
+        
         // Seed resignation data
         $this->call(ResignationSeeder::class);
         
         // Seed termination data
         $this->call(TerminationSeeder::class);
     }
-
+    
     /**
      * Generate enrollment notes based on status
      */

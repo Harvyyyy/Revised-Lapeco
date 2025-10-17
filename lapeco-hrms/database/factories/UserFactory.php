@@ -25,8 +25,17 @@ class UserFactory extends Factory
     {
         $genders = ['Male', 'Female', 'Other'];
         $roleOptions = ['HR_PERSONNEL', 'TEAM_LEADER', 'REGULAR_EMPLOYEE'];
+
+        $firstName = $this->faker->firstName();
+        $middleName = $this->faker->optional(0.4)->firstName();
+        $lastName = $this->faker->lastName();
+        $usernameBase = Str::slug($firstName . '.' . $lastName);
+
         return [
-            'name' => fake()->name(),
+            'first_name' => $firstName,
+            'middle_name' => $middleName,
+            'last_name' => $lastName,
+            'username' => $usernameBase . $this->faker->unique()->numerify('#####'),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
@@ -43,7 +52,7 @@ class UserFactory extends Factory
             'tin_no' => fake()->numerify('###-###-###'),
             'pag_ibig_no' => fake()->numerify('####-####-####'),
             'philhealth_no' => fake()->numerify('####-#####-##-#'),
-            'resume_file' => fake()->filePath(),
+            'resume_file' => null,
             'theme_preference' => fake()->randomElement(['light', 'dark']),
         ];
     }

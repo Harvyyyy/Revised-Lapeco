@@ -57,28 +57,42 @@ const EmployeeDataPage = () => {
     return `${root}${path.startsWith('/') ? '' : '/'}${path}`;
   };
 
-  const normalizeEmployee = (e) => ({
-    id: e.id,
-    name: e.name,
-    email: e.email,
-    role: e.role,
-    positionId: e.position_id ?? e.positionId ?? null,
-    position: e.position ?? null,
-    joiningDate: e.joining_date ?? e.joiningDate ?? null,
-    birthday: e.birthday ?? null,
-    gender: e.gender ?? null,
-    address: e.address ?? null,
-    contactNumber: e.contact_number ?? e.contactNumber ?? null,
-    imageUrl: e.profile_picture_url ?? null,
-    sssNo: e.sss_no ?? e.sssNo ?? null,
-    tinNo: e.tin_no ?? e.tinNo ?? null,
-    pagIbigNo: e.pag_ibig_no ?? e.pagIbigNo ?? null,
-    philhealthNo: e.philhealth_no ?? e.philhealthNo ?? null,
-    resumeFile: e.resume_file ?? e.resumeFile ?? null,
-    // Prefer explicit resumeUrl; otherwise derive from resume_file if provided as a relative storage path
-    resumeUrl: e.resumeUrl ?? buildFileUrl(e.resume_file ?? null),
-    attendance_status: e.attendance_status ?? 'Active',
-  });
+  const normalizeEmployee = (e) => {
+    const firstName = e.first_name ?? e.firstName ?? null;
+    const middleName = e.middle_name ?? e.middleName ?? null;
+    const lastName = e.last_name ?? e.lastName ?? null;
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ') || e.name || '';
+    const attendanceStatus = e.attendance_status ?? 'Pending';
+    const accountStatus = e.account_status ?? e.status ?? null;
+
+    return {
+      id: e.id,
+      first_name: firstName,
+      middle_name: middleName,
+      last_name: lastName,
+      name: fullName,
+      email: e.email,
+      role: e.role,
+      positionId: e.position_id ?? e.positionId ?? null,
+      position: e.position ?? null,
+      joiningDate: e.joining_date ?? e.joiningDate ?? null,
+      birthday: e.birthday ?? null,
+      gender: e.gender ?? null,
+      address: e.address ?? null,
+      contactNumber: e.contact_number ?? e.contactNumber ?? null,
+      imageUrl: e.profile_picture_url ?? null,
+      sssNo: e.sss_no ?? e.sssNo ?? null,
+      tinNo: e.tin_no ?? e.tinNo ?? null,
+      pagIbigNo: e.pag_ibig_no ?? e.pagIbigNo ?? null,
+      philhealthNo: e.philhealth_no ?? e.philhealthNo ?? null,
+      resumeFile: e.resume_file ?? e.resumeFile ?? null,
+      // Prefer explicit resumeUrl; otherwise derive from resume_file if provided as a relative storage path
+      resumeUrl: e.resumeUrl ?? buildFileUrl(e.resume_file ?? null),
+      attendance_status: attendanceStatus,
+      account_status: accountStatus,
+      status: accountStatus ?? attendanceStatus,
+    };
+  };
 
   // Fetch employees and positions
   useEffect(() => {
@@ -100,19 +114,13 @@ const EmployeeDataPage = () => {
         
         // For list view, we already have the essential data from the optimized endpoint
         // No need to normalize as much since the backend returns the right format
-        const normalizedEmployees = empData.map(e => ({
-          id: e.id,
-          name: e.name,
-          email: e.email,
-          positionId: e.position_id,
-          position: e.position,
-          positionTitle: e.position, // Backend already provides position name
-          joiningDate: e.joining_date,
-          imageUrl: e.profile_picture_url || null,
-          status: e.attendance_status || 'Pending', // Use attendance_status for status filter
-          attendance_status: e.attendance_status,
-          account_status: e.status, // Keep account_status separate
-        }));
+        const normalizedEmployees = empData.map(e => {
+          const normalized = normalizeEmployee(e);
+          return {
+            ...normalized,
+            positionTitle: normalized.position ?? positionMap[normalized.positionId] ?? null,
+          };
+        });
         
         setEmployees(normalizedEmployees);
 
@@ -225,18 +233,13 @@ const EmployeeDataPage = () => {
         const empData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
         
         // For list view, we already have the essential data from the optimized endpoint
-        const normalizedEmployees = empData.map(e => ({
-          id: e.id,
-          name: e.name,
-          email: e.email,
-          positionId: e.position_id,
-          position: e.position,
-          positionTitle: e.position,
-          joiningDate: e.joining_date,
-          imageUrl: e.profile_picture_url || null,
-          status: e.status,
-          attendance_status: e.attendance_status,
-        }));
+        const normalizedEmployees = empData.map(e => {
+          const normalized = normalizeEmployee(e);
+          return {
+            ...normalized,
+            positionTitle: normalized.position,
+          };
+        });
         
         setEmployees(normalizedEmployees);
         setShowAddEditModal(false);
@@ -276,18 +279,13 @@ const EmployeeDataPage = () => {
         setToast({ show: true, message: 'Employee deleted successfully!', type: 'success' });
         const response = await employeeAPI.getList();
         const empData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-        const normalizedEmployees = empData.map(e => ({
-          id: e.id,
-          name: e.name,
-          email: e.email,
-          positionId: e.position_id,
-          position: e.position,
-          positionTitle: e.position,
-          joiningDate: e.joining_date,
-          imageUrl: e.profile_picture_url || null,
-          status: e.status,
-          attendance_status: e.attendance_status,
-        }));
+        const normalizedEmployees = empData.map(e => {
+          const normalized = normalizeEmployee(e);
+          return {
+            ...normalized,
+            positionTitle: normalized.position,
+          };
+        });
         setEmployees(normalizedEmployees);
       } catch (err) {
         // Extract user-friendly error message from backend response

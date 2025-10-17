@@ -16,7 +16,7 @@ class TrainingController extends Controller
      */
     public function index(): JsonResponse
     {
-        $programs = TrainingProgram::with(['enrollments.user:id,name'])
+        $programs = TrainingProgram::with(['enrollments.user:id,first_name,middle_name,last_name'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -28,6 +28,17 @@ class TrainingController extends Controller
             $program->completion_rate = $program->enrolled_count > 0 
                 ? round(($program->completed_count / $program->enrolled_count) * 100, 1) 
                 : 0;
+            
+            // Compute full name for each enrolled user
+            $program->enrollments->each(function ($enrollment) {
+                if ($enrollment->user) {
+                    $enrollment->user->name = trim(implode(' ', array_filter([
+                        $enrollment->user->first_name,
+                        $enrollment->user->middle_name,
+                        $enrollment->user->last_name,
+                    ])));
+                }
+            });
         });
 
         return response()->json($programs);
@@ -75,8 +86,19 @@ class TrainingController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $program = TrainingProgram::with(['enrollments.user:id,name'])
+        $program = TrainingProgram::with(['enrollments.user:id,first_name,middle_name,last_name'])
             ->findOrFail($id);
+
+        // Compute full name for each enrolled user
+        $program->enrollments->each(function ($enrollment) {
+            if ($enrollment->user) {
+                $enrollment->user->name = trim(implode(' ', array_filter([
+                    $enrollment->user->first_name,
+                    $enrollment->user->middle_name,
+                    $enrollment->user->last_name,
+                ])));
+            }
+        });
 
         return response()->json($program);
     }
@@ -159,9 +181,23 @@ class TrainingController extends Controller
      */
     public function enrollments(): JsonResponse
     {
-        $enrollments = TrainingEnrollment::with(['program:id,title', 'user:id,name'])
+        $enrollments = TrainingEnrollment::with([
+            'program:id,title', 
+            'user:id,first_name,middle_name,last_name'
+        ])
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // Compute full name for each user
+        $enrollments->each(function ($enrollment) {
+            if ($enrollment->user) {
+                $enrollment->user->name = trim(implode(' ', array_filter([
+                    $enrollment->user->first_name,
+                    $enrollment->user->middle_name,
+                    $enrollment->user->last_name,
+                ])));
+            }
+        });
 
         return response()->json($enrollments);
     }
@@ -208,7 +244,16 @@ class TrainingController extends Controller
             'notes' => $validated['notes'] ?? null
         ]);
 
-        $enrollment->load(['program:id,title', 'user:id,name']);
+        $enrollment->load(['program:id,title', 'user:id,first_name,middle_name,last_name']);
+
+        // Compute full name for the user
+        if ($enrollment->user) {
+            $enrollment->user->name = trim(implode(' ', array_filter([
+                $enrollment->user->first_name,
+                $enrollment->user->middle_name,
+                $enrollment->user->last_name,
+            ])));
+        }
 
         return response()->json([
             'message' => 'User enrolled successfully',
@@ -238,7 +283,16 @@ class TrainingController extends Controller
 
         $enrollment->update($validated);
 
-        $enrollment->load(['program:id,title', 'user:id,name']);
+        $enrollment->load(['program:id,title', 'user:id,first_name,middle_name,last_name']);
+
+        // Compute full name for the user
+        if ($enrollment->user) {
+            $enrollment->user->name = trim(implode(' ', array_filter([
+                $enrollment->user->first_name,
+                $enrollment->user->middle_name,
+                $enrollment->user->last_name,
+            ])));
+        }
 
         return response()->json([
             'message' => 'Enrollment updated successfully',

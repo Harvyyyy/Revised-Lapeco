@@ -1,0 +1,113 @@
+.verification-bg {
+  background-image: url('../../assets/background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.verification-wrapper {
+  min-height: 100vh;
+  padding: 32px 16px;
+}
+
+.verification-logo {
+  max-height: 70px;
+}
+
+.verification-panel {
+  width: 100%;
+  max-width: 420px;
+  border: none;
+  border-radius: 20px;
+  background-color: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 20px 45px rgba(25, 42, 70, 0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  position: relative;
+  overflow: hidden;
+}
+
+.verification-panel::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160%;
+  height: 215px;
+  background: linear-gradient(97deg, rgba(82, 245, 76, 0.12) 0%, rgb(0 124 51 / 18%) 100%);
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+  pointer-events: none;
+}
+
+.verification-panel-content {
+  position: relative;
+  z-index: 1;
+}
+
+.verification-title {
+  font-weight: 600;
+  color: var(--app-success-color);
+}
+
+.verification-subtext {
+  color: #5b6b8b;
+  line-height: 1.7;
+}
+
+.verification-status-icon {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  margin-bottom: 20px;
+}
+
+.verification-info-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(91, 107, 139, 0.18);
+  background-color: rgba(241, 245, 255, 0.75);
+  color: #4a5c7a;
+}
+
+.verification-info-box.success {
+  border-color: rgba(28, 180, 84, 0.25);
+  background-color: rgba(225, 245, 234, 0.85);
+  color: #1c7c46;
+}
+
+.verification-info-box.error {
+  border-color: rgba(217, 83, 79, 0.28);
+  background-color: rgba(255, 235, 233, 0.9);
+  color: #b42318;
+}
+
+.verification-footer {
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 32px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 576px) {
+  .verification-panel {
+    max-width: 100%;
+    border-radius: 16px;
+    padding: 22px 20px;
+  }
+  .verification-status-icon {
+    width: 74px;
+    height: 74px;
+    font-size: 36px;
+  }
+  .verification-wrapper {
+    padding: 24px 12px;
+  }
+}

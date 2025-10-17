@@ -80,6 +80,8 @@ export const authAPI = {
   getUser: () => api.get('/user'),
   updateThemePreference: (theme) => api.put('/user/theme-preference', { theme: theme }),
   changePassword: (passwordData) => api.put('/password', passwordData),
+  sendPasswordResetLink: (payload) => api.post('/forgot-password', payload),
+  resetPassword: (payload) => api.post('/reset-password', payload),
 };
 
 // Dashboard API calls
@@ -163,7 +165,7 @@ export const templateAPI = {
 
 // Applicant API calls
 export const applicantAPI = {
-  getAll: () => api.get('/applicants'),
+  getAll: (summary = false) => api.get('/applicants', { params: { summary: summary ? 'true' : 'false' } }),
   getById: (id) => api.get(`/applicants/${id}`),
   create: (data) => api.post('/applicants', data),
   update: (id, data) => api.put(`/applicants/${id}`, data),

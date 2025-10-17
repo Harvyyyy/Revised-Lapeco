@@ -110,6 +110,58 @@
     flex-grow: 1;
 }
 
+/* --- Email Verification Styles --- */
+.verification-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.verification-actions .btn {
+    min-width: 160px;
+}
+
+.email-verification-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+}
+
+.email-verification-status.verified {
+    background-color: var(--success-bg, #d1e7dd);
+    border: 1px solid var(--success-border, #badbcc);
+    color: var(--success-text, #0f5132);
+}
+
+.email-verification-status.unverified {
+    background-color: var(--warning-bg, #fff3cd);
+    border: 1px solid var(--warning-border, #ffecb5);
+    color: var(--warning-text, #664d03);
+}
+
+.verification-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.verification-badge.verified {
+    background-color: var(--success-color, #198754);
+    color: white;
+}
+
+.verification-badge.unverified {
+    background-color: var(--warning-color, #ffc107);
+    color: var(--dark-color, #212529);
+}
+
 @media (max-width: 992px) {
     .account-settings-grid {
         grid-template-columns: 1fr; 
@@ -124,5 +176,14 @@
     }
     .settings-nav .nav-heading {
         display: none;
+    }
+    
+    .verification-actions {
+        flex-direction: column;
+    }
+    
+    .verification-actions .btn {
+        min-width: auto;
+        width: 100%;
     }
 }

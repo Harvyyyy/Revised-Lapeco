@@ -106,6 +106,34 @@ export const getLoginSessions = async () => {
     }
 };
 
+// Check email verification status
+export const checkEmailVerificationStatus = async () => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/user`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        
+        return await handleResponse(response);
+    } catch (error) {
+        throw error;
+    }
+};
+
+// Resend email verification
+export const resendEmailVerification = async () => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/email/verification-notification`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        
+        return await handleResponse(response);
+    } catch (error) {
+        throw error;
+    }
+};
+
 // Revoke login session
 export const revokeSession = async (sessionId) => {
     try {

@@ -8,7 +8,7 @@ import logo from '../../assets/logo.png';
 const Login = ({ onLoginSuccess, onSendCode, onVerifyCode, onResetPassword }) => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState(''); // Changed from email to login to accept both username and email
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [lockoutEndTime, setLockoutEndTime] = useState(null);
@@ -95,7 +95,7 @@ const Login = ({ onLoginSuccess, onSendCode, onVerifyCode, onResetPassword }) =>
     setIsLoading(true);
     
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ login, password });
       
       // Store token and user data in localStorage
       localStorage.setItem('auth_token', response.data.token);
@@ -212,13 +212,13 @@ const Login = ({ onLoginSuccess, onSendCode, onVerifyCode, onResetPassword }) =>
 
               <form onSubmit={handleSubmit} className="login-form">
                 <div className="mb-3">
-                  <label htmlFor="email" className="form-label login-label">Email</label>
-                  <input type="email" className="form-control login-input" id="email" placeholder="e.g., user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+                  <label htmlFor="login" className="form-label login-label">Username or Email</label>
+                  <input type="text" name="login" className="form-control login-input" id="login" placeholder="Email or Username" value={login} onChange={(e) => setLogin(e.target.value)} required autoComplete="username" />
                 </div>
                 <div className="mb-3">
                   <label htmlFor="password" className="form-label login-label">Password</label>
                   <div className="input-group">
-                    <input type={showPassword ? 'text' : 'password'} className="form-control login-input" id="password" placeholder="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+                    <input type={showPassword ? 'text' : 'password'} name="password" className="form-control login-input" id="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
                     <span className="input-group-text login-input-group-text" onClick={togglePasswordVisibility} style={{ cursor: 'pointer' }}>
                       <i className={showPassword ? 'bi bi-eye-slash' : 'bi bi-eye'}></i>
                     </span>
