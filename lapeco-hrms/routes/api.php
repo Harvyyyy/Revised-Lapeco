@@ -128,6 +128,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     // Schedule Management - with role-based access control
     Route::middleware(['role.access:schedule,index'])->get('/schedules', [ScheduleController::class, 'index']);
     Route::middleware(['role.access:schedule,index'])->get('/schedules/api', [ScheduleController::class, 'apiIndex']);
+    Route::middleware(['role.access:schedule,index'])->get('/schedules/by-date', [ScheduleController::class, 'getByDate']);
     Route::middleware(['role.access:schedule,index'])->get('/schedules/basic', [ScheduleController::class, 'apiIndexBasic']);
     Route::middleware(['role.access:schedule,view'])->get('/schedules/{id}', [ScheduleController::class, 'show']);
     Route::middleware(['role.access:schedule,store'])->post('/schedules', [ScheduleController::class, 'store']);
@@ -150,6 +151,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
 
     // Schedule Templates - with role-based access control
     Route::middleware(['role.access:schedule,index'])->get('/schedule-templates', [ScheduleController::class, 'templatesIndex']);
+    Route::middleware(['role.access:schedule,index'])->get('/schedule-templates/{id}', [ScheduleController::class, 'templatesShow']);
     Route::middleware(['role.access:schedule,store'])->post('/schedule-templates', [ScheduleController::class, 'createTemplate']);
     Route::middleware(['role.access:schedule,update'])->put('/schedule-templates/{id}', [ScheduleController::class, 'updateTemplate']);
     Route::middleware(['role.access:schedule,destroy'])->delete('/schedule-templates/{id}', [ScheduleController::class, 'deleteTemplate']);

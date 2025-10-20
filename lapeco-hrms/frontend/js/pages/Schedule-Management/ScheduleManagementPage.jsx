@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './ScheduleManagementPage.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -7,18 +7,18 @@ import EditScheduleModal from '../../modals/EditScheduleModal';
 import SelectDateForScheduleModal from '../../modals/SelectDateForScheduleModal';
 import ConfirmationModal from '../../modals/ConfirmationModal';
 import Layout from '@/layout/Layout';
-import { scheduleAPI, templateAPI, employeeAPI, positionAPI } from '../../services/api';
+import { scheduleAPI, templateAPI } from '../../services/api';
 import ToastNotification from '../../common/ToastNotification';
+import DailyScheduleView from './DailyScheduleView';
+import ScheduleListView from './ScheduleListView';
+import ScheduleTemplatesView from './ScheduleTemplatesView';
 
 const ScheduleManagementPage = (props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [schedules, setSchedules] = useState([]);
   const [basicSchedules, setBasicSchedules] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [positions, setPositions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeView, setActiveView] = useState('daily');
   const [previewData, setPreviewData] = useState(null);
@@ -32,6 +32,16 @@ const ScheduleManagementPage = (props) => {
   const [editingItem, setEditingItem] = useState(null);
   const [editingType, setEditingType] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [scheduleDetailsByDate, setScheduleDetailsByDate] = useState({});
+  const [dailyScheduleLoading, setDailyScheduleLoading] = useState(false);
+  const [basicSchedulesLoading, setBasicSchedulesLoading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateDetailsById, setTemplateDetailsById] = useState({});
+  const basicSchedulesFetchedRef = useRef(false);
+  const templatesFetchedRef = useRef(false);
+  const basicSchedulesLoadingRef = useRef(false);
+  const templatesLoadingRef = useRef(false);
+  const templateDetailsLoadingRef = useRef({});
 
   // View-specific state
   const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -62,108 +72,177 @@ const ScheduleManagementPage = (props) => {
     }
   }, [location.state, navigate, location.pathname]);
 
-  // Fetch all data function
-  const fetchAllData = async () => {
-    try {
-      setLoading(true);
-      const [schedulesRes, templatesRes, employeesRes, positionsRes] = await Promise.all([
-        scheduleAPI.getAll(),
-        templateAPI.getAll(),
-        employeeAPI.getAll(),
-        positionAPI.getAll()
-      ]);
-
-      // Transform schedules data
-      const transformedSchedules = [];
-      const scheduleMap = new Map();
-      if (schedulesRes.data && schedulesRes.data.schedules) {
-        schedulesRes.data.schedules.forEach(schedule => {
-          // Add to basic schedules map using actual schedule ID
-          const key = `${schedule.date}-${schedule.name}`;
-          if (!scheduleMap.has(key)) {
-            scheduleMap.set(key, {
-              id: schedule.id, // Use actual schedule ID, not assignment ID
-              date: schedule.date,
-              name: schedule.name,
-              employees_count: 0
-            });
-          }
-          
-          schedule.assignments.forEach(assignment => {
-            transformedSchedules.push({
-              id: assignment.id,
-              date: schedule.date,
-              name: schedule.name,
-              user_name: assignment.user_name,
-              employee_id: assignment.employee_id,
-              position_name: assignment.position_name,
-              start_time: assignment.start_time,
-              end_time: assignment.end_time,
-              ot_hours: assignment.ot_hours || '0',
-              notes: assignment.notes
-            });
-            
-            // Increment employee count for this schedule
-            scheduleMap.get(key).employees_count++;
-          });
-        });
-      }
-      setSchedules(transformedSchedules);
-      setBasicSchedules(Array.from(scheduleMap.values()));
-
-      // Set other data
-      setTemplates(Array.isArray(templatesRes.data) ? templatesRes.data : (templatesRes.data?.data || []));
-      
-      const empData = Array.isArray(employeesRes.data) ? employeesRes.data : (employeesRes.data?.data || []);
-      const posData = Array.isArray(positionsRes.data) ? positionsRes.data : (positionsRes.data?.data || []);
-      
-      // Create position lookup map
-      const positionMap = {};
-      posData.forEach(p => {
-        positionMap[p.id] = p.title ?? p.name;
-      });
-      
-      // Normalize employees and add position title
-      const normalizedEmployees = empData.map(e => {
-        const normalized = {
-          id: e.id,
-          name: e.name,
-          email: e.email,
-          role: e.role,
-          positionId: e.position_id ?? e.positionId,
-          joiningDate: e.joining_date ?? e.joiningDate,
-          birthday: e.birthday,
-          gender: e.gender,
-          address: e.address,
-          contactNumber: e.contact_number ?? e.contactNumber,
-          imageUrl: e.image_url ?? e.imageUrl,
-          sssNo: e.sss_no ?? e.sssNo,
-          tinNo: e.tin_no ?? e.tinNo,
-          pagIbigNo: e.pag_ibig_no ?? e.pagIbigNo,
-          philhealthNo: e.philhealth_no ?? e.philhealthNo,
-          resumeFile: e.resume_file ?? e.resumeFile,
-          status: e.account_status ?? e.status ?? 'Active',
-          position: positionMap[e.position_id ?? e.positionId] || null
-        };
-        normalized.positionTitle = normalized.positionId ? positionMap[normalized.positionId] : null;
-        return normalized;
-      });
-      
-      setEmployees(normalizedEmployees);
-      setPositions(posData);
-      
-      setError(null);
-    } catch (err) {
-      setError('Failed to load data. Please try again.');
-    } finally {
-      setLoading(false);
+  const refreshBasicSchedules = useCallback(async ({ force = false } = {}) => {
+    if (!force && basicSchedulesFetchedRef.current) {
+      return basicSchedules;
     }
-  };
+    if (basicSchedulesLoadingRef.current) {
+      return basicSchedules;
+    }
 
-  // Load data on component mount
+    basicSchedulesLoadingRef.current = true;
+    setBasicSchedulesLoading(true);
+    try {
+      const response = await scheduleAPI.getAllBasic();
+      const rawSchedules = Array.isArray(response.data) ? response.data : (response.data?.schedules || []);
+      const normalized = rawSchedules.map(item => ({
+        id: item.id,
+        name: item.name,
+        date: normalizeScheduleDate(item.date),
+        employeeCount: item.employees_count ?? item.employeeCount ?? 0
+      }));
+      basicSchedulesFetchedRef.current = true;
+      setBasicSchedules(normalized);
+      return normalized;
+    } finally {
+      basicSchedulesLoadingRef.current = false;
+      setBasicSchedulesLoading(false);
+    }
+  }, [basicSchedules]);
+
+  const refreshTemplates = useCallback(async ({ force = false } = {}) => {
+    if (!force && templatesFetchedRef.current) {
+      return templates;
+    }
+    if (templatesLoadingRef.current) {
+      return templates;
+    }
+
+    templatesLoadingRef.current = true;
+    setTemplatesLoading(true);
+    try {
+      const response = await templateAPI.getAll();
+      const templatesData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      templatesFetchedRef.current = true;
+      setTemplates(templatesData);
+      return templatesData;
+    } finally {
+      templatesLoadingRef.current = false;
+      setTemplatesLoading(false);
+    }
+  }, [templates]);
+
+  const loadScheduleForDate = useCallback(async (date, { force = false, showSpinner = false } = {}) => {
+    const normalizedDate = normalizeScheduleDate(date);
+    if (!normalizedDate) return null;
+
+    if (!force && scheduleDetailsByDate[normalizedDate]) {
+      return scheduleDetailsByDate[normalizedDate];
+    }
+
+    if (showSpinner) {
+      setDailyScheduleLoading(true);
+    }
+
+    try {
+      const response = await scheduleAPI.getByDate(normalizedDate);
+      const scheduleData = response.data?.schedule || null;
+
+      const normalizedSchedule = scheduleData
+        ? {
+            ...scheduleData,
+            date: normalizedDate,
+            assignments: (scheduleData.assignments || []).map(assignment => ({
+              ...assignment,
+              date: normalizedDate
+            }))
+          }
+        : null;
+
+      setScheduleDetailsByDate(prev => ({
+        ...prev,
+        [normalizedDate]: normalizedSchedule
+      }));
+
+      return normalizedSchedule;
+    } catch (err) {
+      if (showSpinner) {
+        setToast({ show: true, message: 'Failed to load schedule for the selected date.', type: 'error' });
+      }
+      throw err;
+    } finally {
+      if (showSpinner) {
+        setDailyScheduleLoading(false);
+      }
+    }
+  }, [scheduleDetailsByDate, setToast]);
+
+  const loadTemplateDetails = useCallback(async (templateId, { force = false } = {}) => {
+    if (!templateId) return null;
+
+    if (!force && templateDetailsById[templateId]) {
+      return templateDetailsById[templateId];
+    }
+
+    if (templateDetailsLoadingRef.current[templateId]) {
+      return templateDetailsById[templateId] || null;
+    }
+
+    templateDetailsLoadingRef.current[templateId] = true;
+    try {
+      const response = await templateAPI.getById(templateId);
+      const templateData = response.data?.template || null;
+
+      const normalizedTemplate = templateData
+        ? (() => {
+            let columns = templateData.columns;
+            if (typeof columns === 'string') {
+              try {
+                columns = JSON.parse(columns);
+              } catch (err) {
+                columns = [];
+              }
+            }
+            if (!Array.isArray(columns) && columns) {
+              columns = Object.values(columns);
+            }
+            if (!Array.isArray(columns)) {
+              columns = [];
+            }
+
+            const assignments = Array.isArray(templateData.assignments)
+              ? templateData.assignments.map(assignment => ({
+                  ...assignment,
+                  user: assignment.user || null,
+                }))
+              : [];
+
+            return {
+              ...templateData,
+              columns,
+              assignments,
+            };
+          })()
+        : null;
+
+      setTemplateDetailsById(prev => ({
+        ...prev,
+        [templateId]: normalizedTemplate,
+      }));
+
+      return normalizedTemplate;
+    } finally {
+      delete templateDetailsLoadingRef.current[templateId];
+    }
+  }, [templateDetailsById]);
+
   useEffect(() => {
-    fetchAllData();
+    setLoading(false);
+    setError(null);
   }, []);
+
+  useEffect(() => {
+    if (activeView === 'list') {
+      refreshBasicSchedules().catch(() => {});
+    } else if (activeView === 'templates') {
+      refreshTemplates().catch(() => {});
+    }
+  }, [activeView, refreshBasicSchedules, refreshTemplates]);
+
+  useEffect(() => {
+    if (!currentDate) return;
+    loadScheduleForDate(currentDate, { showSpinner: activeView === 'daily' }).catch(() => {});
+  }, [currentDate, loadScheduleForDate, activeView]);
   
   const formatTimeToAMPM = (timeString) => {
     console.log('formatTimeToAMPM called with:', timeString, 'type:', typeof timeString);
@@ -216,38 +295,47 @@ const ScheduleManagementPage = (props) => {
   };
 
   // --- MEMOIZED DATA & DERIVED STATE ---
-  // Use basicSchedules for list view with correct employee counts
   const schedulesByDate = useMemo(() => {
-
     const grouped = {};
-
-    // Create grouped data from basicSchedules for list view
     (basicSchedules || []).forEach(schedule => {
-
       const normalizedDate = normalizeScheduleDate(schedule.date);
       grouped[normalizedDate] = {
         info: {
           id: schedule.id,
           name: schedule.name,
           date: normalizedDate,
-          employeeCount: schedule.employees_count
+          employeeCount: schedule.employeeCount ?? schedule.employees_count ?? 0
         }
       };
-      
     });
-    
-    // Add detailed schedule data for daily view
-    (schedules || []).forEach(sch => {
-      const normalizedDate = normalizeScheduleDate(sch.date);
+
+    Object.entries(scheduleDetailsByDate || {}).forEach(([date, detail]) => {
+      if (!detail) return;
+      const normalizedDate = normalizeScheduleDate(date);
+      const assignments = (detail.assignments || []).map(assignment => ({ ...assignment, date: normalizedDate }));
       if (!grouped[normalizedDate]) {
-        grouped[normalizedDate] = { info: { name: sch.name, date: normalizedDate, employeeCount: 0 } };
+        grouped[normalizedDate] = {
+          info: {
+            id: detail.id,
+            name: detail.name,
+            date: normalizedDate,
+            employeeCount: assignments.length
+          }
+        };
+      } else {
+        grouped[normalizedDate].info = {
+          id: detail.id,
+          name: detail.name,
+          date: normalizedDate,
+          employeeCount: assignments.length
+        };
       }
-      (grouped[normalizedDate].assignments = grouped[normalizedDate].assignments || []).push({ ...sch, date: normalizedDate });
+      grouped[normalizedDate].assignments = assignments;
     });
-    
+
     return grouped;
-  }, [schedules, basicSchedules]);
-  
+  }, [basicSchedules, scheduleDetailsByDate]);
+
   const scheduledEmployeesForDate = useMemo(() => {
     return (schedulesByDate[currentDate]?.assignments || []).map(schedule => ({ ...schedule }));
   }, [currentDate, schedulesByDate]);
@@ -255,7 +343,7 @@ const ScheduleManagementPage = (props) => {
   const sortedAndFilteredDailyEmployees = useMemo(() => {
     let employeesToProcess = [...scheduledEmployeesForDate];
     if (positionFilter) {
-      employeesToProcess = employeesToProcess.filter(emp => emp.position === positionFilter);
+      employeesToProcess = employeesToProcess.filter(emp => emp.position_name === positionFilter);
     }
     if (dailySortConfig.key) {
       employeesToProcess.sort((a, b) => {
@@ -314,7 +402,7 @@ const ScheduleManagementPage = (props) => {
   ];
   
   const positionsOnDate = useMemo(() => {
-    const positions = new Set(scheduledEmployeesForDate.map(e => e.position));
+    const positions = new Set(scheduledEmployeesForDate.map(e => e.position_name).filter(Boolean));
     return ['All Positions', ...Array.from(positions).sort()];
   }, [scheduledEmployeesForDate]);
 
@@ -591,8 +679,53 @@ const ScheduleManagementPage = (props) => {
 
   const handleOpenDeleteConfirm = (item, type) => {
     setItemToDelete({ item, type });
+    setShowDeleteConfirm(true);
   };
-  
+
+  const handleViewScheduleDetails = async (scheduleInfo) => {
+    try {
+      await loadScheduleForDate(scheduleInfo.date, { force: false, showSpinner: false });
+      setPreviewData({ info: scheduleInfo, type: 'schedule' });
+    } catch (err) {
+      setToast({ show: true, message: 'Failed to load schedule details.', type: 'error' });
+    }
+  };
+
+  const handleViewTemplateDetails = async (templateInfo) => {
+    try {
+      const detailedTemplate = await loadTemplateDetails(templateInfo.id, { force: false });
+      const templateToUse = detailedTemplate || templateInfo;
+
+      let columns = templateToUse.columns;
+      if (typeof columns === 'string') {
+        try {
+          columns = JSON.parse(columns);
+        } catch (err) {
+          columns = [];
+        }
+      }
+      if (!Array.isArray(columns) && columns) {
+        columns = Object.values(columns);
+      }
+      if (!Array.isArray(columns)) {
+        columns = [];
+      }
+
+      const assignments = Array.isArray(templateToUse.assignments)
+        ? templateToUse.assignments
+        : [];
+
+      setPreviewData({
+        ...templateToUse,
+        columns,
+        assignments,
+        type: 'template',
+      });
+    } catch (err) {
+      setToast({ show: true, message: 'Failed to load template details.', type: 'error' });
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (isDeleting) return; // Prevent double-click
     
@@ -606,17 +739,6 @@ const ScheduleManagementPage = (props) => {
       // Error handling is already done in individual delete functions
     }
     setItemToDelete(null);
-  };
-
-  const getSortIcon = (key, config) => {
-    if (config.key !== key) return <i className="bi bi-arrow-down-up sort-icon ms-1"></i>;
-    return config.direction === 'ascending' ? <i className="bi bi-sort-up sort-icon active ms-1"></i> : <i className="bi bi-sort-down sort-icon active ms-1"></i>;
-  };
-  
-  const requestDailySort = (key) => {
-    let direction = 'ascending';
-    if (dailySortConfig.key === key && dailySortConfig.direction === 'ascending') { direction = 'descending'; }
-    setDailySortConfig({ key, direction });
   };
 
   // --- RENDER FUNCTIONS ---
@@ -732,142 +854,52 @@ const ScheduleManagementPage = (props) => {
   };
   
   const renderMainContent = () => {
-    switch(activeView) {
+    switch (activeView) {
       case 'daily':
         return (
-          <>
-            <div className="daily-view-header">
-              <h4 className="daily-view-title">Daily Schedule</h4>
-              <div className="daily-view-controls">
-                <input type="date" className="form-control form-control-lg" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} />
-                {scheduledEmployeesForDate.length > 0 && (
-                  <button className="btn btn-lg btn-outline-secondary" onClick={() => handleOpenEditScheduleModal(currentDate)} title="Edit Schedule">
-                    <i className="bi bi-pencil-fill"></i>
-                  </button>
-                )}
-              </div>
-            </div>
-            {sortedAndFilteredDailyEmployees.length > 0 ? (
-              <>
-                <div className="card data-table-card shadow-sm"><div className="card-body p-0"><div className="table-responsive">
-                    <table className="table data-table mb-0">
-                        <thead>
-                            <tr>
-                              {dailyViewColumns.map(col => <th key={col.key}>{col.name}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortedAndFilteredDailyEmployees.map((sch, idx) => (
-                                <tr key={idx}>
-                                  {dailyViewColumns.map(col => {
-                                    const value = sch[col.key];
-                                    if (col.key === 'start_time' || col.key === 'end_time') {
-                                      return <td key={col.key}>{formatTimeToAMPM(value)}</td>;
-                                    } else if (col.key === 'ot_hours') {
-                                      return <td key={col.key}>{value && parseFloat(value) > 0 ? value : '---'}</td>;
-                                    }
-                                    return <td key={col.key}>{value || '---'}</td>;
-                                  })}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div></div></div>
-              </>
-            ) : (
-                <div className="text-center p-5 bg-light rounded">
-                    <i className="bi bi-calendar2-x fs-1 text-muted mb-3 d-block"></i>
-                    <h4 className="text-muted">{scheduledEmployeesForDate.length > 0 && positionFilter ? 'No employees match the filter.' : `No schedule created for ${new Date(currentDate + 'T00:00:00').toLocaleDateString()}.`}</h4>
-                </div>
-            )}
-          </>
+          <DailyScheduleView
+            currentDate={currentDate}
+            onDateChange={setCurrentDate}
+            scheduledEmployeesForDate={scheduledEmployeesForDate}
+            sortedAndFilteredDailyEmployees={sortedAndFilteredDailyEmployees}
+            dailyViewColumns={dailyViewColumns}
+            formatTimeToAMPM={formatTimeToAMPM}
+            onEditSchedule={handleOpenEditScheduleModal}
+            positionFilter={positionFilter}
+            isLoading={dailyScheduleLoading}
+          />
         );
       case 'list':
         return (
-          <div className="schedule-list-container">
-            <div className="schedule-list-controls">
-                <div className="input-group">
-                    <span className="input-group-text"><i className="bi bi-search"></i></span>
-                    <input type="text" className="form-control" placeholder="Search by schedule name..." value={listSearchTerm} onChange={(e) => setListSearchTerm(e.target.value)} />
-                </div>
-                <div className="dropdown sort-dropdown">
-                    <button className="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i className="bi bi-funnel me-2"></i>{listSortLabel}
-                    </button>
-                    <ul className="dropdown-menu dropdown-menu-end">
-                        <li><h6 className="dropdown-header">Sort by Date</h6></li>
-                        <li><a className={`dropdown-item ${listSortConfig.key === 'date' && listSortConfig.direction === 'descending' ? 'active' : ''}`} href="#" onClick={(e) => {e.preventDefault(); setListSortConfig({ key: 'date', direction: 'descending' });}}>Newest First</a></li>
-                        <li><a className={`dropdown-item ${listSortConfig.key === 'date' && listSortConfig.direction === 'ascending' ? 'active' : ''}`} href="#" onClick={(e) => {e.preventDefault(); setListSortConfig({ key: 'date', direction: 'ascending' });}}>Oldest First</a></li>
-                        <li><hr className="dropdown-divider"/></li>
-                        <li><h6 className="dropdown-header">Sort by Name</h6></li>
-                        <li><a className={`dropdown-item ${listSortConfig.key === 'name' && listSortConfig.direction === 'ascending' ? 'active' : ''}`} href="#" onClick={(e) => {e.preventDefault(); setListSortConfig({ key: 'name', direction: 'ascending' });}}>A to Z</a></li>
-                        <li><a className={`dropdown-item ${listSortConfig.key === 'name' && listSortConfig.direction === 'descending' ? 'active' : ''}`} href="#" onClick={(e) => {e.preventDefault(); setListSortConfig({ key: 'name', direction: 'descending' });}}>Z to A</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div className="schedule-card-grid mt-3">
-                {sortedAndFilteredSchedules.length > 0 ? sortedAndFilteredSchedules.map(scheduleInfo => (
-                    <div key={scheduleInfo.date} className="schedule-item-card type-schedule">
-                        <div className="card-header"><h5 className="card-title">{scheduleInfo.name}</h5></div>
-                        <div className="card-body">
-                            <div className="info-row"><span className="info-label">Date:</span><span className="info-value">{new Date(scheduleInfo.date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
-                            <div className="info-row"><span className="info-label">Employees Scheduled:</span><span className="info-value">{scheduleInfo.employeeCount}</span></div>
-                        </div>
-                        <div className="card-footer">
-                            <button className="btn btn-sm btn-outline-secondary" onClick={() => handleOpenEditScheduleModal(scheduleInfo.date)}>Edit</button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => handleOpenDeleteConfirm(scheduleInfo, 'schedule')}>Delete</button>
-                            <button className="btn btn-sm btn-success" onClick={() => setPreviewData({ info: scheduleInfo, type: 'schedule' })}>View Details</button>
-                        </div>
-                    </div>
-                )) : <div className="w-100"><p className="text-muted text-center mt-4">No schedules match your search.</p></div>}
-            </div>
-          </div>
+          <ScheduleListView
+            listSearchTerm={listSearchTerm}
+            onSearchChange={setListSearchTerm}
+            listSortLabel={listSortLabel}
+            listSortConfig={listSortConfig}
+            onSortChange={setListSortConfig}
+            sortedAndFilteredSchedules={sortedAndFilteredSchedules}
+            onEditSchedule={handleOpenEditScheduleModal}
+            onDeleteSchedule={(scheduleInfo) => handleOpenDeleteConfirm(scheduleInfo, 'schedule')}
+            onViewDetails={handleViewScheduleDetails}
+            isLoading={basicSchedulesLoading && basicSchedules.length === 0}
+          />
         );
       case 'templates':
         return (
-          <div className="templates-container">
-            <div className="schedule-list-controls">
-                <div className="input-group" style={{maxWidth: '400px'}}>
-                    <span className="input-group-text"><i className="bi bi-search"></i></span>
-                    <input type="text" className="form-control" placeholder="Search by template name..." value={templateSearchTerm} onChange={(e) => setTemplateSearchTerm(e.target.value)} />
-                </div>
-            </div>
-            <div className="schedule-card-grid mt-3">
-                <div className="schedule-item-card" style={{borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', minHeight: '220px', cursor: 'pointer'}} onClick={() => handleOpenCreateTemplateModal()}>
-                    <div className="text-center text-muted"><i className="bi bi-plus-square-dotted fs-2"></i><p className="mt-2 mb-0 fw-bold">Create New Template</p></div>
-                </div>
-                {filteredTemplates.length > 0 ? filteredTemplates.map(tpl => (
-                    <div key={tpl.id} className="schedule-item-card type-template">
-                        <div className="card-header"><h5 className="card-title">{tpl.name}</h5></div>
-                        <div className="card-body">
-                            <dl className="mb-0">
-                                <div className="template-info-section"><dt>Description</dt><dd>{tpl.description || 'No description provided'}</dd></div>
-                                <div className="template-info-section">
-                                    <dt>Template Columns</dt>
-                                    <dd>
-                                        <div className="d-flex flex-wrap gap-1">
-                                            {(tpl.columns || []).map(key => (
-                                                <span key={key} className="badge bg-secondary" style={{fontSize: '0.75rem'}}>
-                                                    {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </dd>
-                                <div className="template-info-section"><dt>Assigned Employees</dt><dd>{tpl.assignments?.length || 0} employees</dd></div>
-                                </div>
-                            </dl>
-                        </div>
-                        <div className="card-footer">
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => handleOpenDeleteConfirm(tpl, 'template')}>Delete</button>
-                            <button className="btn btn-sm btn-outline-secondary" onClick={() => handleOpenCreateTemplateModal(tpl)}>Edit</button>
-                            <button className="btn btn-sm btn-success" onClick={() => setPreviewData({ ...tpl, type: 'template' })}>View Details</button>
-                        </div>
-                    </div>
-                )) : <div className="w-100"><p className="text-muted text-center mt-4">No templates match your search.</p></div>}
-            </div>
-          </div>
+          <ScheduleTemplatesView
+            templateSearchTerm={templateSearchTerm}
+            onSearchChange={setTemplateSearchTerm}
+            filteredTemplates={filteredTemplates}
+            isLoading={templatesLoading && templates.length === 0}
+            onCreateTemplate={() => handleOpenCreateTemplateModal()}
+            onDeleteTemplate={(tpl) => handleOpenDeleteConfirm(tpl, 'template')}
+            onEditTemplate={handleOpenCreateTemplateModal}
+            onViewTemplateDetails={handleViewTemplateDetails}
+            setPreviewData={setPreviewData}
+          />
         );
-      default: return null;
+      default:
+        return null;
     }
   };
 
@@ -947,7 +979,16 @@ const ScheduleManagementPage = (props) => {
 
       {/* --- MODALS --- */}
       {showCreateTemplateModal && ( <CreateTemplateModal show={showCreateTemplateModal} onClose={handleCloseCreateTemplateModal} onSave={handleSaveAndCloseTemplateModal} positions={[]} templateData={editingTemplate} /> )}
-      {showEditScheduleModal && editingScheduleDate && ( <EditScheduleModal show={showEditScheduleModal} onClose={handleCloseEditScheduleModal} onSave={handleSaveAndCloseEditModal} scheduleId={schedulesByDate[editingScheduleDate]?.info?.id} scheduleDate={editingScheduleDate} allEmployees={employees} positions={positions} /> )}
+      {showEditScheduleModal && editingScheduleDate && (
+        <EditScheduleModal
+          show={showEditScheduleModal}
+          onClose={handleCloseEditScheduleModal}
+          onSave={handleSaveAndCloseEditModal}
+          scheduleId={schedulesByDate[editingScheduleDate]?.info?.id}
+          scheduleDate={editingScheduleDate}
+          initialAssignments={schedulesByDate[editingScheduleDate]?.assignments || []}
+        />
+      )}
       {showSelectDateModal && ( <SelectDateForScheduleModal show={showSelectDateModal} onClose={() => setShowSelectDateModal(false)} onProceed={handleProceedToBuilder} existingScheduleDates={existingScheduleDatesSet} />)}
       
       {/* Toast Notification */}

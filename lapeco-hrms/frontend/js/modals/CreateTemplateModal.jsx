@@ -74,14 +74,39 @@ const CreateTemplateModal = ({ show, onClose, onSave, positions, templateData })
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validate()) {
-      const dataToSave = {
-        ...formData,
-        columns: formData.columns.map(c => c.key),
-      };
-      onSave(dataToSave, templateData?.id);
+    if (!formData.name.trim()) {
+      setToast({ show: true, message: 'Template name is required.', type: 'error' });
+      return;
+    }
+
+    if (assignments.length === 0) {
+      setToast({ show: true, message: 'Assign at least one employee to the template.', type: 'error' });
+      return;
+    }
+
+    const columns = ['start_time', 'end_time', 'ot_hours', ...formData.columns.map(col => col.key)];
+    const normalizedAssignments = assignments
+      .filter(assignment => assignment.empId)
+      .map(assignment => ({
+        empId: assignment.empId,
+        start_time: assignment.start_time,
+        end_time: assignment.end_time,
+        ot_hours: assignment.ot_hours || '0',
+        notes: assignment.notes || null,
+      }));
+
+    const payload = {
+      name: formData.name,
+      description: formData.description,
+      columns,
+      assignments: normalizedAssignments,
+    };
+
+    const success = await onSave(payload, templateData?.id);
+    if (success) {
+      onClose();
     }
   };
 

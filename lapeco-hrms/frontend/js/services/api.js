@@ -122,6 +122,7 @@ export const positionAPI = {
 export const scheduleAPI = {
   getAll: () => api.get('/schedules'),
   getAllBasic: () => api.get('/schedules/basic'),
+  getByDate: (date) => api.get('/schedules/by-date', { params: { date } }),
   getById: (id) => api.get(`/schedules/${id}`),
   create: (data) => api.post('/schedules', data),
   update: (id, data) => api.put(`/schedules/${id}`, data),
@@ -160,6 +161,7 @@ export const holidayAPI = {
 // Template API calls
 export const templateAPI = {
   getAll: () => api.get('/schedule-templates'),
+  getById: (id) => api.get(`/schedule-templates/${id}`),
   create: (data) => api.post('/schedule-templates', data),
   update: (id, data) => api.put(`/schedule-templates/${id}`, data),
   delete: (id) => api.delete(`/schedule-templates/${id}`),
