@@ -305,6 +305,41 @@ class ScheduleController extends Controller
         return response()->json($template);
     }
 
+    public function templatesShow($id)
+    {
+        $template = ScheduleTemplate::with(['assignments.user.position'])->find($id);
+
+        if (!$template) {
+            return response()->json(['template' => null], 404);
+        }
+
+        $normalizedTemplate = [
+            'id' => $template->id,
+            'name' => $template->name,
+            'description' => $template->description,
+            'columns' => $template->columns,
+            'assignments' => $template->assignments->map(function ($assignment) {
+                return [
+                    'id' => $assignment->id,
+                    'start_time' => $assignment->start_time,
+                    'end_time' => $assignment->end_time,
+                    'ot_hours' => $assignment->ot_hours,
+                    'notes' => $assignment->notes,
+                    'user' => $assignment->user ? [
+                        'id' => $assignment->user->id,
+                        'name' => $assignment->user->name,
+                        'position' => $assignment->user->position ? [
+                            'id' => $assignment->user->position->id,
+                            'name' => $assignment->user->position->name,
+                        ] : null,
+                    ] : null,
+                ];
+            })->values()->toArray(),
+        ];
+
+        return response()->json(['template' => $normalizedTemplate]);
+    }
+
     public function templatesDestroy($id)
     {
         $template = ScheduleTemplate::findOrFail($id);
@@ -369,6 +404,44 @@ class ScheduleController extends Controller
     {
         $schedules = Schedule::with(['assignments.user.position'])->get();
         return response()->json($schedules);
+    }
+
+    public function getByDate(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $schedule = Schedule::with(['assignments.user.position'])
+            ->where('date', $validated['date'])
+            ->first();
+
+        if (!$schedule) {
+            return response()->json([
+                'schedule' => null,
+            ]);
+        }
+
+        return response()->json([
+            'schedule' => [
+                'id' => $schedule->id,
+                'name' => $schedule->name,
+                'date' => $schedule->date,
+                'description' => $schedule->description,
+                'assignments' => $schedule->assignments->map(function ($assignment) {
+                    return [
+                        'id' => $assignment->id,
+                        'start_time' => $assignment->start_time,
+                        'end_time' => $assignment->end_time,
+                        'ot_hours' => $assignment->ot_hours,
+                        'notes' => $assignment->notes,
+                        'user_name' => $assignment->user ? $assignment->user->name : null,
+                        'employee_id' => $assignment->user ? $assignment->user->id : null,
+                        'position_name' => $assignment->user && $assignment->user->position ? $assignment->user->position->name : null,
+                    ];
+                })->values()->toArray(),
+            ],
+        ]);
     }
 
     public function apiIndexBasic()

@@ -1,22 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import Select from 'react-select';
+import React, { useState, useEffect } from 'react';
 import AddColumnModal from './AddColumnModal';
 import { scheduleAPI } from '../services/api';
 import '../pages/Schedule-Management/ScheduleManagementPage.css';
 
-const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, allEmployees = [], positions }) => {
+const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, initialAssignments = [] }) => {
   const [scheduleName, setScheduleName] = useState('');
   const [columns, setColumns] = useState([
     { key: 'start_time', name: 'Start Time' },
     { key: 'end_time', name: 'End Time' },
+    { key: 'ot_hours', name: 'OT Hours' }
   ]);
   const [gridData, setGridData] = useState([]);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const employeeOptions = useMemo(() => (allEmployees || []).map(e => ({ value: e.id, label: `${e.name} (${e.id})` })), [allEmployees]);
-  const positionsMap = useMemo(() => new Map((positions || []).map(p => [p.id, p.title])), [positions]);
-  
   useEffect(() => {
     const loadScheduleData = async () => {
       if (show && scheduleId) {
@@ -24,7 +21,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
         try {
           const response = await scheduleAPI.getById(scheduleId);
           const scheduleData = response.data;
-          
+
           // Debug: Log the raw data to see what we're receiving
           console.log('Raw schedule data:', scheduleData);
           if (scheduleData.assignments && scheduleData.assignments.length > 0) {
@@ -35,33 +32,23 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
               end_time_type: typeof scheduleData.assignments[0].end_time
             });
           }
-          
-          setScheduleName(scheduleData.name || `Schedule for ${scheduleDate}`);
-          
-          // Set default columns for start_time, end_time, and ot_hours
-          const defaultColumns = [
-            { key: 'start_time', name: 'Start Time' },
-            { key: 'end_time', name: 'End Time' },
-            { key: 'ot_hours', name: 'OT Hours' }
-          ];
-          setColumns(defaultColumns);
-          
+
           // Helper function to format time values from database
           const formatTime = (timeValue) => {
             if (!timeValue) return '';
-            
+
             // If it's already in HH:MM format, return as is
             if (typeof timeValue === 'string' && timeValue.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
               return timeValue.substring(0, 5); // Return only HH:MM part
             }
-            
+
             // If it's a UTC datetime string (ISO format), extract time part without timezone conversion
             if (typeof timeValue === 'string' && timeValue.includes('T') && timeValue.includes('Z')) {
               // Extract time part from ISO datetime string (e.g., "2025-09-30T10:07:00.000000Z" -> "10:07")
               const timePart = timeValue.split('T')[1].split('.')[0]; // Get "10:07:00"
               return timePart.substring(0, 5); // Return only "10:07"
             }
-            
+
             // If it's a datetime string, extract time part
             if (typeof timeValue === 'string') {
               const date = new Date(timeValue);
@@ -73,12 +60,11 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
                 });
               }
             }
-            
+
             return timeValue || '';
           };
-          
-          // Map the assignments to grid data
-          const initialGrid = scheduleData.assignments.map(assignment => {
+
+          const mapAssignmentsToRows = (assignmentsSource) => assignmentsSource.map(assignment => {
             const row = { 
               empId: assignment.employee_id,
               employeeName: assignment.user_name || '',
@@ -86,27 +72,36 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
               positionName: assignment.position_name || '',
               start_time: formatTime(assignment.start_time),
               end_time: formatTime(assignment.end_time),
-              ot_hours: assignment.ot_hours || ''
+              ot_hours: assignment.ot_hours || '',
+              notes: assignment.notes || ''
             };
             return row;
           });
-          setGridData(initialGrid);
+
+          if (scheduleData.assignments && scheduleData.assignments.length > 0) {
+            setGridData(mapAssignmentsToRows(scheduleData.assignments));
+          } else if (initialAssignments && initialAssignments.length > 0) {
+            setGridData(mapAssignmentsToRows(initialAssignments));
+          } else {
+            setGridData([{ empId: '', employeeName: '', employeeId: '', positionName: '', start_time: '', end_time: '', ot_hours: '', notes: '' }]);
+          }
         } catch (error) {
         } finally {
           setLoading(false);
         }
       }
     };
-    
+
     loadScheduleData();
   }, [show, scheduleId, scheduleDate]);
 
   const addEmployeeRow = () => {
-    const newRow = columns.reduce((acc, col) => ({ ...acc, [col.key]: '' }), { empId: '' });
+    const newRow = columns.reduce((acc, col) => ({ ...acc, [col.key]: '' }), { empId: '', employeeName: '', employeeId: '', positionName: '', notes: '' });
     setGridData(prev => [...prev, newRow]);
   };
+
   const removeEmployeeRow = (rowIndex) => setGridData(prev => prev.filter((_, index) => index !== rowIndex));
-  
+
   const handleAddColumn = (newColumn) => {
     if (columns.some(c => c.key === newColumn.key)) return;
     setColumns(prev => [...prev, newColumn]);
@@ -125,10 +120,17 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
       return newRow;
     }));
   };
-  
+
   const handleGridChange = (rowIndex, field, value) => {
     const newGrid = [...gridData];
     newGrid[rowIndex][field] = value;
+    setGridData(newGrid);
+  };
+
+  const handleEmpIdChange = (rowIndex, value) => {
+    const newGrid = [...gridData];
+    newGrid[rowIndex].empId = value;
+    newGrid[rowIndex].employeeId = value;
     setGridData(newGrid);
   };
 
@@ -144,7 +146,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
         const entryData = columns.reduce((acc, col) => { if(row[col.key] && String(row[col.key]).trim() !== '') acc[col.key] = row[col.key]; return acc; }, {});
         // Require both start_time and end_time
         if (Object.keys(entryData).length > 0 && entryData.start_time && entryData.end_time) {
-          updatedScheduleEntries.push({ ...entryData, empId: row.empId, date: scheduleDate, name: scheduleName });
+          updatedScheduleEntries.push({ ...entryData, empId: row.empId, date: scheduleDate, name: scheduleName, notes: row.notes || null });
         }
       }
     });
@@ -179,8 +181,8 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
                 <table className="table table-bordered table-sm">
                   <thead>
                     <tr>
-                      <th className="employee-name-column">Employee Name</th>
                       <th className="employee-id-column">Employee ID</th>
+                      <th className="employee-name-column">Employee Name</th>
                       <th className="position-column">Position</th>
                       {columns.map(col => (
                         (col.key !== 'user_name' && col.key !== 'employee_id' && col.key !== 'position_name') && (
@@ -194,29 +196,34 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
                     </tr>
                   </thead>
                   <tbody>
-                    {gridData.map((row, rowIndex) => {
-                      const selectedEmployee = allEmployees.find(e => e.id === row.empId);
-                      const positionTitle = selectedEmployee ? (positionsMap.get(selectedEmployee.positionId) || 'Unassigned') : '';
-                      return (
+                    {gridData.map((row, rowIndex) => (
                         <tr key={rowIndex}>
                           <td>
-                            <div className="react-select-container">
-                              <Select 
-                                options={employeeOptions} 
-                                isClearable 
-                                placeholder="Select..." 
-                                value={employeeOptions.find(o => o.value === row.empId)} 
-                                onChange={opt => handleGridChange(rowIndex, 'empId', opt ? opt.value : '')} 
-                                menuPortalTarget={document.body} 
-                                styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }} 
-                              />
-                            </div>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              value={row.empId || ''}
+                              onChange={e => handleEmpIdChange(rowIndex, e.target.value)}
+                              placeholder="Employee ID"
+                            />
                           </td>
                           <td>
-                            <input type="text" className="form-control form-control-sm readonly-input" value={selectedEmployee?.id || ''} readOnly disabled />
+                            <input
+                              type="text"
+                              className="form-control form-control-sm readonly-input"
+                              value={row.employeeName || ''}
+                              readOnly
+                              disabled
+                            />
                           </td>
                           <td>
-                            <input type="text" className="form-control form-control-sm readonly-input" value={positionTitle} readOnly disabled />
+                            <input
+                              type="text"
+                              className="form-control form-control-sm readonly-input"
+                              value={row.positionName || ''}
+                              readOnly
+                              disabled
+                            />
                           </td>
                           {columns.map(col => (
                             (col.key !== 'user_name' && col.key !== 'employee_id' && col.key !== 'position_name') && (
@@ -229,6 +236,13 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
                                     onChange={e => handleGridChange(rowIndex, col.key, e.target.value === '---' ? '0' : e.target.value)} 
                                     onFocus={e => { if (e.target.value === '---') e.target.value = '0'; }}
                                   />
+                                ) : col.key === 'notes' ? (
+                                  <textarea
+                                    className="form-control form-control-sm"
+                                    rows={1}
+                                    value={row.notes || ''}
+                                    onChange={e => handleGridChange(rowIndex, 'notes', e.target.value)}
+                                  />
                                 ) : (
                                   <input type="text" className="form-control form-control-sm shift-input" value={row[col.key] || ''} onChange={e => handleGridChange(rowIndex, col.key, e.target.value)} />
                                 )}
@@ -237,8 +251,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, al
                           ))}
                           <td><button type="button" className="btn btn-sm btn-outline-danger" onClick={() => removeEmployeeRow(rowIndex)} title="Remove Row"><i className="bi bi-x-lg"></i></button></td>
                         </tr>
-                      );
-                    })}
+                      ))}
                   </tbody>
                 </table>
               </div>
