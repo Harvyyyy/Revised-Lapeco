@@ -19,6 +19,13 @@ const EditableContributionTable = ({ columns, rows, onCellChange, onHeaderChange
     };
   }, [columns, rows]);
 
+  const currencyKeys = new Set(['employeeContribution','employerContribution','totalContribution','grossCompensation','taxableCompensation','taxWithheld']);
+  const formatMoney = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    const num = Number(value);
+    if (isNaN(num)) return value;
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   return (
     <>
@@ -81,7 +88,7 @@ const EditableContributionTable = ({ columns, rows, onCellChange, onHeaderChange
                     <input
                       type="text"
                       className="form-control form-control-sm"
-                      value={row[col.key] || ''}
+                      value={currencyKeys.has(col.key) ? formatMoney(row[col.key]) : (row[col.key] || '')}
                       onChange={(e) => onCellChange(rowIndex, col.key, e.target.value)}
                       readOnly={!col.editable}
                     />

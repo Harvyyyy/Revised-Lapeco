@@ -1,5 +1,5 @@
 import React from 'react';
-import placeholderAvatar from '../../../assets/placeholder-profile.jpg';
+import Avatar from '../../common/Avatar';
 
 const PerformanceInsightsCard = ({ title, icon, data, className, onAvatarClick, renderDetail }) => {
   const visibleAvatars = data.slice(0, 7);
@@ -16,11 +16,11 @@ const PerformanceInsightsCard = ({ title, icon, data, className, onAvatarClick, 
           <div className="insight-avatar-list">
             {visibleAvatars.map(emp => (
               <div key={emp.evaluationId || emp.id} className="insight-avatar-container" onClick={() => onAvatarClick(emp)}>
-                <img 
-                  src={emp.imageUrl || placeholderAvatar} 
+                <Avatar 
+                  src={emp.imageUrl} 
                   alt={emp.name} 
+                  size="sm" 
                   className="insight-avatar" 
-                  title={emp.name}
                 />
                 {renderDetail && renderDetail(emp)}
               </div>

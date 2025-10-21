@@ -7,6 +7,7 @@ use Illuminate\Database\Seeder;
 use App\Models\ScheduleTemplate;
 use App\Models\ScheduleAssignment;
 use App\Models\User;
+use Carbon\Carbon;
 
 class ScheduleTemplateAssignmentSeeder extends Seeder
 {
@@ -128,10 +129,13 @@ class ScheduleTemplateAssignmentSeeder extends Seeder
             foreach ($selectedUsers as $index => $user) {
                 $shift = $shifts[$index % count($shifts)];
                 $note = $notes[$index % count($notes)];
-                
+
+                $breakStart = Carbon::createFromFormat('H:i', $shift['start'])->copy()->addHours(4);
+                $breakEnd = $breakStart->copy()->addMinutes(45);
+
                 // Generate realistic overtime hours for template assignments
                 $otHours = 0;
-                
+
                 // Template-based overtime patterns
                 if (str_contains($templateName, 'Emergency') || str_contains($templateName, 'Holiday')) {
                     // Emergency and holiday schedules have higher overtime probability
@@ -149,12 +153,14 @@ class ScheduleTemplateAssignmentSeeder extends Seeder
                         $otHours = [0.5, 1.0, 1.5][rand(0, 2)];
                     }
                 }
-                
+
                 ScheduleAssignment::create([
                     'schedule_template_id' => $template->id,
                     'user_id' => $user->id,
                     'start_time' => $shift['start'],
                     'end_time' => $shift['end'],
+                    'break_start' => $breakStart->format('H:i'),
+                    'break_end' => $breakEnd->format('H:i'),
                     'ot_hours' => $otHours,
                     'notes' => $note,
                 ]);

@@ -122,11 +122,15 @@ const ScheduleManagementPage = (props) => {
     }
   }, [templates]);
 
+  const hasScheduleCacheEntry = useCallback((dateKey) => (
+    Object.prototype.hasOwnProperty.call(scheduleDetailsByDate, dateKey)
+  ), [scheduleDetailsByDate]);
+
   const loadScheduleForDate = useCallback(async (date, { force = false, showSpinner = false } = {}) => {
     const normalizedDate = normalizeScheduleDate(date);
     if (!normalizedDate) return null;
 
-    if (!force && scheduleDetailsByDate[normalizedDate]) {
+    if (!force && hasScheduleCacheEntry(normalizedDate)) {
       return scheduleDetailsByDate[normalizedDate];
     }
 
@@ -165,7 +169,7 @@ const ScheduleManagementPage = (props) => {
         setDailyScheduleLoading(false);
       }
     }
-  }, [scheduleDetailsByDate, setToast]);
+  }, [scheduleDetailsByDate, hasScheduleCacheEntry, setToast]);
 
   const loadTemplateDetails = useCallback(async (templateId, { force = false } = {}) => {
     if (!templateId) return null;
@@ -397,6 +401,8 @@ const ScheduleManagementPage = (props) => {
     { key: 'employee_id', name: 'Employee ID' },
     { key: 'position_name', name: 'Position' },
     { key: 'start_time', name: 'Start Time' },
+    { key: 'break_start', name: 'Break Start' },
+    { key: 'break_end', name: 'Break End' },
     { key: 'end_time', name: 'End Time' },
     { key: 'ot_hours', name: 'OT (hrs)' },
   ];
@@ -408,41 +414,77 @@ const ScheduleManagementPage = (props) => {
 
   const existingScheduleDatesSet = useMemo(() => new Set(Object.keys(schedulesByDate)), [schedulesByDate]);
 
+  const formatDateInMessage = useCallback((message) => {
+    if (!message) return message;
+    return message.replace(/(\d{4})-(\d{2})-(\d{2})/g, (_, year, month, day) => {
+      const date = new Date(Number(year), Number(month) - 1, Number(day));
+      if (Number.isNaN(date.getTime())) {
+        return `${year}-${month}-${day}`;
+      }
+      return date.toLocaleDateString(undefined, {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    });
+  }, []);
+
   // --- HANDLERS ---
   const handleOpenCreateTemplateModal = (template = null) => { setEditingTemplate(template); setShowCreateTemplateModal(true); };
   const handleCloseCreateTemplateModal = () => { setShowCreateTemplateModal(false); setEditingTemplate(null); };
   const handleSaveAndCloseTemplateModal = async (formData, templateId) => {
     try {
-      // TODO: Implement template API when available
-      
-      // await templateAPI.create(formData) or templateAPI.update(templateId, formData)
+      if (templateId) {
+        await templateAPI.update(templateId, formData);
+        setToast({ show: true, message: 'Template updated successfully!', type: 'success' });
+      } else {
+        await templateAPI.create(formData);
+        setToast({ show: true, message: 'Template created successfully!', type: 'success' });
+      }
+
+      await refreshTemplates({ force: true });
+      handleCloseCreateTemplateModal();
+      return true;
     } catch (error) {
+      const message = error?.response?.data?.message || 'Failed to save template. Please try again.';
+      setToast({ show: true, message, type: 'error' });
+      return false;
     }
-    handleCloseCreateTemplateModal();
   };
   
   const handleDeleteTemplate = async (templateId) => {
     if (isDeleting) return; // Prevent double-click
-    
+
     setIsDeleting(true);
+    let deleteSucceeded = false;
+
     try {
-      // TODO: Implement template API when available
-      // await templateAPI.delete(templateId);
-      
-      // For now, just remove from local state
-      setTemplates(prev => prev.filter(template => template.id !== templateId));
+      const response = await templateAPI.delete(templateId);
+      const successMessage = formatDateInMessage(response?.data?.message || 'Template deleted successfully!');
+      setToast({ show: true, message: successMessage, type: 'success' });
+      deleteSucceeded = true;
     } catch (error) {
-      if (error.response?.status === 404) {
-        alert('Template not found. It may have already been deleted.');
-        // Refresh data to sync with server state
-        await loadData();
+      const successMessage = error?.response?.data?.message;
+      if (successMessage && successMessage.toLowerCase().includes('deleted successfully')) {
+        setToast({ show: true, message: formatDateInMessage(successMessage), type: 'success' });
+        deleteSucceeded = true;
+      } else if (error.response?.status === 404) {
+        setToast({ show: true, message: 'Template not found. It may have already been deleted.', type: 'warning' });
       } else {
-        alert('Failed to delete template. Please try again.');
+        const message = error?.response?.data?.message || 'Failed to delete template. Please try again.';
+        setToast({ show: true, message: formatDateInMessage(message), type: 'error' });
       }
-      throw error;
-    } finally {
-      setIsDeleting(false);
     }
+
+    if (deleteSucceeded) {
+      try {
+        await refreshTemplates({ force: true });
+      } catch (refreshError) {
+        console.error('Failed to refresh templates after delete:', refreshError);
+      }
+    }
+
+    setIsDeleting(false);
   };
   
   const handleCreateSchedule = async (scheduleData) => {
@@ -535,59 +577,70 @@ const ScheduleManagementPage = (props) => {
   
   const handleDeleteSchedule = async (scheduleId) => {
     if (isDeleting) return; // Prevent double-click
-    
+
     setIsDeleting(true);
+    let deleteSucceeded = false;
+    let successMessage = 'Schedule deleted successfully!';
+
     try {
-      await scheduleAPI.delete(scheduleId);
-      // Refresh data after deletion
-      const response = await scheduleAPI.getAll();
-      const transformedSchedules = [];
-      const scheduleMap = new Map();
-      if (response.data && response.data.schedules) {
-        response.data.schedules.forEach(schedule => {
-          // Add to basic schedules map using actual schedule ID
-          const key = `${schedule.date}-${schedule.name}`;
-          if (!scheduleMap.has(key)) {
-            scheduleMap.set(key, {
-              id: schedule.id, // Use actual schedule ID, not assignment ID
-              date: schedule.date,
-              name: schedule.name,
-              employees_count: 0
-            });
-          }
-          
-          schedule.assignments.forEach(assignment => {
-            transformedSchedules.push({
-              id: assignment.id,
-              date: schedule.date,
-              name: schedule.name,
-              user_name: assignment.user_name,
-              employee_id: assignment.employee_id,
-              position_name: assignment.position_name,
-              start_time: assignment.start_time,
-              end_time: assignment.end_time,
-              ot_hours: assignment.ot_hours || '0'
-            });
-            
-            // Increment employee count for this schedule
-            scheduleMap.get(key).employees_count++;
-          });
-        });
-      }
-      setSchedules(transformedSchedules);
-      setBasicSchedules(Array.from(scheduleMap.values()));
+      const response = await scheduleAPI.delete(scheduleId);
+      successMessage = response?.data?.message || successMessage;
+      deleteSucceeded = true;
     } catch (error) {
-      if (error.response?.status === 404) {
-        alert('Schedule not found. It may have already been deleted.');
-        // Refresh data to sync with server state
-        await loadData();
+      const apiMessage = error?.response?.data?.message;
+      if (apiMessage && apiMessage.toLowerCase().includes('deleted successfully')) {
+        successMessage = apiMessage;
+        deleteSucceeded = true;
+      } else if (error.response?.status === 404) {
+        setToast({ show: true, message: 'Schedule not found. It may have already been deleted.', type: 'warning' });
       } else {
-        alert('Failed to delete schedule. Please try again.');
+        const message = apiMessage || 'Failed to delete schedule. Please try again.';
+        setToast({ show: true, message, type: 'error' });
       }
-      throw error;
-    } finally {
-      setIsDeleting(false);
     }
+
+    if (deleteSucceeded) {
+      setToast({ show: true, message: formatDateInMessage(successMessage), type: 'success' });
+      try {
+        const response = await scheduleAPI.getAll();
+        const transformedSchedules = [];
+        const scheduleMap = new Map();
+        if (response.data && response.data.schedules) {
+          response.data.schedules.forEach(schedule => {
+            const key = `${schedule.date}-${schedule.name}`;
+            if (!scheduleMap.has(key)) {
+              scheduleMap.set(key, {
+                id: schedule.id,
+                date: schedule.date,
+                name: schedule.name,
+                employees_count: 0
+              });
+            }
+
+            schedule.assignments.forEach(assignment => {
+              transformedSchedules.push({
+                id: assignment.id,
+                date: schedule.date,
+                name: schedule.name,
+                user_name: assignment.user_name,
+                employee_id: assignment.employee_id,
+                position_name: assignment.position_name,
+                start_time: assignment.start_time,
+                end_time: assignment.end_time,
+                ot_hours: assignment.ot_hours || '0'
+              });
+              scheduleMap.get(key).employees_count++;
+            });
+          });
+        }
+        setSchedules(transformedSchedules);
+        setBasicSchedules(Array.from(scheduleMap.values()));
+      } catch (refreshError) {
+        console.error('Failed to refresh schedules after delete:', refreshError);
+      }
+    }
+
+    setIsDeleting(false);
   };
 
   const handleOpenEditScheduleModal = (date) => { setEditingScheduleDate(date); setShowEditScheduleModal(true); };
@@ -610,6 +663,8 @@ const ScheduleManagementPage = (props) => {
           empId: entry.empId,
           start_time: entry.start_time,
           end_time: entry.end_time,
+          break_start: entry.break_start || null,
+          break_end: entry.break_end || null,
           ot_hours: entry.ot_hours || '0',
           notes: entry.notes || null
         }))
@@ -625,8 +680,12 @@ const ScheduleManagementPage = (props) => {
       await scheduleAPI.update(scheduleInfo.id, scheduleData);
       
       // Refresh the schedule data
-      await fetchAllData();
-      
+      await Promise.all([
+        refreshBasicSchedules({ force: true }),
+        refreshTemplates({ force: true }),
+        loadScheduleForDate(scheduleInfo.date, { force: true, showSpinner: false })
+      ]);
+
       // Close the modal and show success message
       handleCloseEditScheduleModal();
       setToast({ show: true, message: 'Schedule updated successfully!', type: 'success' });
@@ -772,7 +831,7 @@ const ScheduleManagementPage = (props) => {
                               <thead>
                                   <tr>
                                       <th>Employee Name</th><th>Employee ID</th><th>Position</th>
-                                      <th>Start Time</th><th>End Time</th><th>OT (hrs)</th>
+                                      <th>Start Time</th><th>Break Start</th><th>Break End</th><th>End Time</th><th>OT (hrs)</th>
                                       {(columnsForTable || []).map(key => <th key={key}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}</th>)}
                                   </tr>
                               </thead>
@@ -789,6 +848,8 @@ const ScheduleManagementPage = (props) => {
                                           <td>{assignment.user?.id || 'N/A'}</td>
                                           <td>{assignment.user?.position?.name || 'Unassigned'}</td>
                                           <td>{formatTimeToAMPM(assignment.start_time)}</td>
+                                          <td>{formatTimeToAMPM(assignment.break_start)}</td>
+                                          <td>{formatTimeToAMPM(assignment.break_end)}</td>
                                           <td>{formatTimeToAMPM(assignment.end_time)}</td>
                                           <td>{assignment.ot_hours && parseFloat(assignment.ot_hours) > 0 ? assignment.ot_hours : '---'}</td>
                                           {(columnsForTable || []).map(key => <td key={key}>-</td>)}
@@ -803,13 +864,13 @@ const ScheduleManagementPage = (props) => {
                               <thead>
                                   <tr>
                                       <th>Employee Name</th><th>Employee ID</th><th>Position</th>
-                                      <th>Start Time</th><th>End Time</th><th>OT (hrs)</th>
+                                      <th>Start Time</th><th>Break Start</th><th>Break End</th><th>End Time</th><th>OT (hrs)</th>
                                       {(columnsForTable || []).map(key => <th key={key}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}</th>)}
                                   </tr>
                               </thead>
                               <tbody>
                                   <tr>
-                                      <td colSpan={6 + (columnsForTable || []).length} className="text-center">This template has no assigned employees yet.</td>
+                                      <td colSpan={8 + (columnsForTable || []).length} className="text-center">This template has no assigned employees yet.</td>
                                   </tr>
                               </tbody>
                           </table>
@@ -824,7 +885,7 @@ const ScheduleManagementPage = (props) => {
                           <thead>
                               <tr>
                                   <th>Employee ID</th><th>Employee Name</th><th>Position</th>
-                                  <th>Start Time</th><th>End Time</th><th>OT Hours</th>
+                                  <th>Start Time</th><th>Break Start</th><th>Break End</th><th>End Time</th><th>OT Hours</th>
                                   {(columnsForTable || []).map(key => <th key={key}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}</th>)}
                               </tr>
                           </thead>
@@ -833,13 +894,15 @@ const ScheduleManagementPage = (props) => {
                                   <tr key={emp.employee_id}>
                                       <td>{emp.employee_id}</td><td>{emp.user_name}</td><td>{emp.position_name || 'Unassigned'}</td>
                                       <td>{formatTimeToAMPM(emp.start_time)}</td>
+                                      <td>{formatTimeToAMPM(emp.break_start)}</td>
+                                      <td>{formatTimeToAMPM(emp.break_end)}</td>
                                       <td>{formatTimeToAMPM(emp.end_time)}</td>
                                       <td>{emp.ot_hours && parseFloat(emp.ot_hours) > 0 ? emp.ot_hours : '---'}</td>
                                       {(columnsForTable || []).map(key => {
-                                        const value = emp[key];
-                                        if (key === 'start_time' || key === 'end_time' || key === 'ot_hours') {
-                                          return <td key={key}>{formatTimeToAMPM(value)}</td>;
+                                        if (['start_time', 'break_start', 'break_end', 'end_time', 'ot_hours'].includes(key)) {
+                                          return null;
                                         }
+                                        const value = emp[key];
                                         return <td key={key}>{value || '---'}</td>;
                                       })}
                                   </tr>
@@ -888,12 +951,11 @@ const ScheduleManagementPage = (props) => {
         return (
           <ScheduleTemplatesView
             templateSearchTerm={templateSearchTerm}
-            onSearchChange={setTemplateSearchTerm}
+            setTemplateSearchTerm={setTemplateSearchTerm}
             filteredTemplates={filteredTemplates}
             isLoading={templatesLoading && templates.length === 0}
-            onCreateTemplate={() => handleOpenCreateTemplateModal()}
-            onDeleteTemplate={(tpl) => handleOpenDeleteConfirm(tpl, 'template')}
-            onEditTemplate={handleOpenCreateTemplateModal}
+            handleOpenCreateTemplateModal={handleOpenCreateTemplateModal}
+            handleOpenDeleteConfirm={(tpl, type) => handleOpenDeleteConfirm(tpl, type)}
             onViewTemplateDetails={handleViewTemplateDetails}
             setPreviewData={setPreviewData}
           />

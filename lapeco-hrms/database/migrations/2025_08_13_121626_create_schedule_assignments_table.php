@@ -18,6 +18,8 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->time('start_time');
             $table->time('end_time');
+            $table->time('break_start')->nullable();
+            $table->time('break_end')->nullable();
             $table->decimal('ot_hours', 4, 2)->default(0);
             $table->text('notes')->nullable();
             $table->timestamps();

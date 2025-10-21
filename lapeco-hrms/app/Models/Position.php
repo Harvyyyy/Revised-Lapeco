@@ -13,6 +13,10 @@ class Position extends Model
         'name',
         'description',
         'monthly_salary',
+        'base_rate_per_hour',
+        'overtime_rate_per_hour',
+        'night_diff_rate_per_hour',
+        'late_deduction_per_minute',
     ];
 
     public function users()

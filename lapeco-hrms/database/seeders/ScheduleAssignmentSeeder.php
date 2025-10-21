@@ -100,11 +100,16 @@ class ScheduleAssignmentSeeder extends Seeder
                     $otHours = [0.5, 1.0, 1.5][rand(0, 2)];
                 }
                 
+                $breakStart = Carbon::parse($startTime)->addHours(4)->format('H:i');
+                $breakEnd = Carbon::parse($breakStart)->addMinutes(45)->format('H:i');
+
                 ScheduleAssignment::create([
                     'schedule_id' => $schedule->id,
                     'user_id' => $user->id,
                     'start_time' => $startTime,
                     'end_time' => $endTime,
+                    'break_start' => $breakStart,
+                    'break_end' => $breakEnd,
                     'ot_hours' => $otHours,
                     'notes' => 'Auto-generated schedule assignment'
                 ]);

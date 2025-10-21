@@ -62,7 +62,7 @@ export const generatePayrollRunSummaryReport = async (layoutManager, dataSources
     }
   };
   
-  // --- 3. SUMMARY TEXT (NEW) ---
+  // --- 3. SUMMARY TEXT ---
   const summaryText = `This report summarizes the payroll run for the period ${run.cutOff}. The total gross pay for ${run.records.length} employees was ${formatCurrency(runTotals.gross)}, with total deductions amounting to ${formatCurrency(runTotals.deductions)}. This resulted in a total net payout of ${formatCurrency(runTotals.net)}.`;
   
   // --- 4. TABLE DATA ---

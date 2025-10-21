@@ -1,23 +1,30 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
-import Select from 'react-select';
 
-const ReportHeader = ({ title, payrolls, selectedRunId, onRunChange, onArchive, isArchived, columns, rows, headerData, onExportPdf }) => {
+const MONTHS = [
+    { value: 0, label: 'January' }, { value: 1, label: 'February' }, { value: 2, label: 'March' },
+    { value: 3, label: 'April' }, { value: 4, label: 'May' }, { value: 5, label: 'June' },
+    { value: 6, label: 'July' }, { value: 7, label: 'August' }, { value: 8, label: 'September' },
+    { value: 9, label: 'October' }, { value: 10, label: 'November' }, { value: 11, label: 'December' },
+];
 
-  const payrollRunOptions = useMemo(() => {
-    return [...payrolls]
-      .sort((a,b) => new Date(b.cutOff.split(' to ')[0]) - new Date(a.cutOff.split(' to ')[0]))
-      .map(run => ({
-        value: run.runId,
-        label: `${run.cutOff} (${run.records.length} employees)`
-      }));
-  }, [payrolls]);
-
-  const selectedOption = useMemo(() => {
-    return payrollRunOptions.find(option => option.value === selectedRunId) || null;
-  }, [payrollRunOptions, selectedRunId]);
+const ReportHeader = ({
+  title,
+  availableYears,
+  selectedYear,
+  selectedMonth,
+  onYearChange,
+  onMonthChange,
+  onArchive,
+  isArchived,
+  onExportPdf,
+  // Props for Excel export
+  columns,
+  rows,
+  headerData,
+}) => {
 
   const handleExportExcel = () => {
     const dataForExport = rows.map(row => {
@@ -34,8 +41,7 @@ const ReportHeader = ({ title, payrolls, selectedRunId, onRunChange, onArchive, 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, title);
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const selectedPayrollRun = payrolls.find(p => p.runId === selectedRunId);
-    const contributionMonth = selectedPayrollRun ? format(new Date(selectedPayrollRun.cutOff.split(' to ')[1]), 'yyyy-MM') : 'report';
+    const contributionMonth = format(new Date(selectedYear, selectedMonth), 'yyyy-MM');
     const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
     saveAs(blob, `${title.replace(/\s+/g, '_')}_${contributionMonth}.xlsx`);
   };
@@ -45,13 +51,18 @@ const ReportHeader = ({ title, payrolls, selectedRunId, onRunChange, onArchive, 
       <div className="header-left">
         <h5 className="mb-0">{title}</h5>
         <div className="d-flex align-items-center gap-2 pay-period-selector-wrapper">
-          <label htmlFor="payrollRunSelect" className="form-label mb-0 small">Pay Period:</label>
-          <Select id="payrollRunSelect" options={payrollRunOptions} value={selectedOption} onChange={(option) => onRunChange(option ? option.value : '')} isDisabled={payrolls.length === 0} className="react-select-container" classNamePrefix="react-select" isSearchable placeholder="Select a pay period..." />
+          <label className="form-label mb-0 small">Month:</label>
+          <select className="form-select form-select-sm" value={selectedYear} onChange={e => onYearChange(Number(e.target.value))}>
+            {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
+          </select>
+          <select className="form-select form-select-sm" value={selectedMonth} onChange={e => onMonthChange(Number(e.target.value))}>
+            {MONTHS.map(month => <option key={month.value} value={month.value}>{month.label}</option>)}
+          </select>
         </div>
       </div>
       <div className="header-right">
         <button className="btn btn-sm btn-outline-primary" onClick={onArchive} disabled={rows.length === 0 || isArchived}>
-          <i className="bi bi-archive-fill me-1"></i> Finalize & Archive Period
+          <i className="bi bi-archive-fill me-1"></i> Finalize & Archive Month
         </button>
         <div className="dropdown">
           <button className="btn btn-sm btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" disabled={rows.length === 0}>
@@ -59,7 +70,7 @@ const ReportHeader = ({ title, payrolls, selectedRunId, onRunChange, onArchive, 
           </button>
           <ul className="dropdown-menu dropdown-menu-end">
               <li><a className="dropdown-item" href="#" onClick={onExportPdf}><i className="bi bi-file-earmark-pdf-fill me-2"></i>Export as PDF</a></li>
-              <li><a className="dropdown-item" href="#" onClick={handleExportExcel}><i className="bi bi-file-earmark-spreadsheet-fill me-2"></i>Export as Excel (CSV)</a></li>
+              <li><a className="dropdown-item" href="#" onClick={handleExportExcel}><i className="bi bi-file-earmark-spreadsheet-fill me-2"></i>Export as Excel</a></li>
           </ul>
         </div>
       </div>

@@ -1,9 +1,9 @@
 import React from 'react';
-import { NavLink, Outlet, useOutletContext as useParentContext } from 'react-router-dom';
+import { NavLink, Outlet, useOutletContext } from 'react-router-dom';
 import './MyPayrollPage.css';
 
-const MyPayrollLayout = ({ employees }) => {
-  const { theme } = useParentContext(); 
+const MyPayrollLayout = () => {
+  const { theme, employees } = useOutletContext();
 
   return (
     <div className="container-fluid p-0 page-module-container">

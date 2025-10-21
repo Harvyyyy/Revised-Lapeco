@@ -22,7 +22,9 @@ class ScheduleController extends Controller
                 'assignments.*.empId' => 'required|exists:users,id',
                 'assignments.*.start_time' => 'required|date_format:H:i',
                 'assignments.*.end_time' => 'required|date_format:H:i|after:assignments.*.start_time',
-                'assignments.*.notes' => 'nullable|string|max:500',
+                'assignments.*.break_start' => 'nullable|date_format:H:i',
+                'assignments.*.break_end' => 'nullable|date_format:H:i',
+                'assignments.*.ot_hours' => 'nullable|numeric',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -51,6 +53,8 @@ class ScheduleController extends Controller
             foreach ($data['assignments'] as $index => $assignment) {
                 $startTime = strtotime($assignment['start_time']);
                 $endTime = strtotime($assignment['end_time']);
+                $breakStart = isset($assignment['break_start']) ? strtotime($assignment['break_start']) : null;
+                $breakEnd = isset($assignment['break_end']) ? strtotime($assignment['break_end']) : null;
                 
                 // Additional validation: ensure times are valid
                 if ($startTime === false || $endTime === false) {
@@ -68,6 +72,24 @@ class ScheduleController extends Controller
                         'error' => 'INVALID_TIME_RANGE',
                         'assignment_index' => $index
                     ], 422);
+                }
+
+                if (($breakStart !== null && $breakStart === false) || ($breakEnd !== null && $breakEnd === false)) {
+                    return response()->json([
+                        'message' => 'Invalid break time format. Please use HH:MM format.',
+                        'error' => 'INVALID_BREAK_TIME',
+                        'assignment_index' => $index
+                    ], 422);
+                }
+
+                if ($breakStart !== null && $breakEnd !== null) {
+                    if ($breakStart === $breakEnd) {
+                        return response()->json([
+                            'message' => 'Break start and end time cannot be the same.',
+                            'error' => 'INVALID_BREAK_RANGE',
+                            'assignment_index' => $index
+                        ], 422);
+                    }
                 }
                 
                 // Calculate work duration and validate 8-hour limit (Philippine Labor Code Article 83)
@@ -124,6 +146,8 @@ class ScheduleController extends Controller
                     [
                         'start_time' => $assignment['start_time'],
                         'end_time' => $assignment['end_time'],
+                        'break_start' => $assignment['break_start'] ?? null,
+                        'break_end' => $assignment['break_end'] ?? null,
                         'ot_hours' => $assignment['ot_hours'] ?? 0,
                         'notes' => $assignment['notes'] ?? null,
                     ]
@@ -170,6 +194,8 @@ class ScheduleController extends Controller
                 'assignments.*.empId' => 'required|exists:users,id',
                 'assignments.*.start_time' => 'required',
                 'assignments.*.end_time' => 'required',
+                'assignments.*.break_start' => 'nullable|date_format:H:i',
+                'assignments.*.break_end' => 'nullable|date_format:H:i',
                 'assignments.*.ot_hours' => 'nullable|numeric|min:0',
                 'assignments.*.notes' => 'nullable|string',
             ]);
@@ -219,6 +245,8 @@ class ScheduleController extends Controller
                         'user_id' => $assignment['empId'],
                         'start_time' => $assignment['start_time'],
                         'end_time' => $assignment['end_time'],
+                        'break_start' => $assignment['break_start'] ?? null,
+                        'break_end' => $assignment['break_end'] ?? null,
                         'ot_hours' => $assignment['ot_hours'] ?? 0,
                         'notes' => $assignment['notes'] ?? null,
                     ]);
@@ -323,6 +351,8 @@ class ScheduleController extends Controller
                     'id' => $assignment->id,
                     'start_time' => $assignment->start_time,
                     'end_time' => $assignment->end_time,
+                    'break_start' => $assignment->break_start,
+                    'break_end' => $assignment->break_end,
                     'ot_hours' => $assignment->ot_hours,
                     'notes' => $assignment->notes,
                     'user' => $assignment->user ? [
@@ -363,6 +393,8 @@ class ScheduleController extends Controller
                         'id' => $assignment->id,
                         'start_time' => $assignment->start_time,
                         'end_time' => $assignment->end_time,
+                        'break_start' => $assignment->break_start,
+                        'break_end' => $assignment->break_end,
                         'ot_hours' => $assignment->ot_hours,
                         'notes' => $assignment->notes,
                         'user_name' => $assignment->user ? $assignment->user->name : null,
@@ -433,6 +465,8 @@ class ScheduleController extends Controller
                         'id' => $assignment->id,
                         'start_time' => $assignment->start_time,
                         'end_time' => $assignment->end_time,
+                        'break_start' => $assignment->break_start,
+                        'break_end' => $assignment->break_end,
                         'ot_hours' => $assignment->ot_hours,
                         'notes' => $assignment->notes,
                         'user_name' => $assignment->user ? $assignment->user->name : null,
@@ -475,6 +509,8 @@ class ScheduleController extends Controller
                     'id' => $assignment->id,
                     'start_time' => $assignment->start_time,
                     'end_time' => $assignment->end_time,
+                    'break_start' => $assignment->break_start,
+                    'break_end' => $assignment->break_end,
                     'ot_hours' => $assignment->ot_hours,
                     'notes' => $assignment->notes,
                     'user_name' => $assignment->user ? $assignment->user->name : null,

@@ -6,11 +6,11 @@ const MOCK_COMPANY_INFO = {
     address: '123 Innovation Drive, Tech City',
 };
 
-export const calculateSssContribution = (salary) => {
-    let msc = Math.min(salary, 30000); // Apply MSC ceiling
-    if (msc < 4000) msc = 4000; // Apply MSC floor as per legislation
+export const calculateSssContribution = (salary, isProvisional = false) => {
+    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
+    let msc = Math.min(monthlyEquivalent, 30000);
+    if (msc < 4000) msc = 4000;
 
-    // Round MSC to the nearest 500 for calculation if not at ceiling
     if (msc < 30000) {
         const remainder = msc % 500;
         if (remainder < 250) {
@@ -20,66 +20,81 @@ export const calculateSssContribution = (salary) => {
         }
     }
     
-    const employeeShare = msc * 0.045;
-    const employerShare = msc * 0.095;
+    const monthlyEmployeeShare = msc * 0.045;
+    const monthlyEmployerShare = msc * 0.095;
+
+    const divisor = isProvisional ? 2 : 1;
 
     return {
-        employeeShare: employeeShare,
-        employerShare: employerShare,
-        total: employeeShare + employerShare,
+        employeeShare: monthlyEmployeeShare / divisor,
+        employerShare: monthlyEmployerShare / divisor,
+        total: (monthlyEmployeeShare + monthlyEmployerShare) / divisor,
     };
 };
 
-export const calculatePhilhealthContribution = (salary) => {
+export const calculatePhilhealthContribution = (salary, isProvisional = false) => {
+    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
     const rate = 0.05;
     const incomeFloor = 10000;
     const incomeCeiling = 100000;
 
-    let baseSalary = Math.max(salary, incomeFloor);
+    let baseSalary = Math.max(monthlyEquivalent, incomeFloor);
     baseSalary = Math.min(baseSalary, incomeCeiling);
 
     const totalPremium = baseSalary * rate;
+    const divisor = isProvisional ? 2 : 1;
 
     return {
-        employeeShare: totalPremium / 2,
-        employerShare: totalPremium / 2,
-        total: totalPremium,
+        employeeShare: (totalPremium / 2) / divisor,
+        employerShare: (totalPremium / 2) / divisor,
+        total: totalPremium / divisor,
     };
 };
 
-export const calculatePagibigContribution = (salary) => {
+export const calculatePagibigContribution = (salary, isProvisional = false) => {
+    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
     let employeeShare;
-    if (salary <= 1500) {
-        employeeShare = salary * 0.01;
+    if (monthlyEquivalent <= 1500) {
+        employeeShare = monthlyEquivalent * 0.01;
     } else {
-        employeeShare = salary * 0.02;
+        employeeShare = monthlyEquivalent * 0.02;
     }
     
-    // Employee share is capped at 100
     employeeShare = Math.min(employeeShare, 100);
-
-    // Employer share is always 2%, capped at 100
-    const employerShare = Math.min(salary * 0.02, 100);
+    const employerShare = Math.min(monthlyEquivalent * 0.02, 100);
+    const divisor = isProvisional ? 2 : 1;
 
     return {
-        employeeShare,
-        employerShare,
-        total: employeeShare + employerShare,
+        employeeShare: employeeShare / divisor,
+        employerShare: employerShare / divisor,
+        total: (employeeShare + employerShare) / divisor,
     };
 };
 
+export const calculateTin = (taxableSemiMonthlySalary) => {
+    let tax = 0;
+    if (taxableSemiMonthlySalary > 10417 && taxableSemiMonthlySalary <= 16666) {
+        tax = (taxableSemiMonthlySalary - 10417) * 0.15;
+    } else if (taxableSemiMonthlySalary > 16667 && taxableSemiMonthlySalary <= 33332) {
+        tax = 937.50 + (taxableSemiMonthlySalary - 16667) * 0.20;
+    } else if (taxableSemiMonthlySalary > 33333 && taxableSemiMonthlySalary <= 83332) {
+        tax = 4270.70 + (taxableSemiMonthlySalary - 33333) * 0.25;
+    } else if (taxableSemiMonthlySalary > 83333 && taxableSemiMonthlySalary <= 333332) {
+        tax = 16770.70 + (taxableSemiMonthlySalary - 83333) * 0.30;
+    } else if (taxableSemiMonthlySalary > 333333) {
+        tax = 91770.70 + (taxableSemiMonthlySalary - 333333) * 0.35;
+    }
+    return { taxWithheld: tax > 0 ? tax : 0 };
+};
 
-export const generateSssData = (employees, positions, selectedPayrollRun) => {
+export const generateSssData = (employees, aggregatedRecords, month, isProvisional) => {
     const employeeMap = new Map(employees.map(e => [e.id, e]));
-    const positionMap = new Map(positions.map(p => [p.id, p]));
 
-    const rows = selectedPayrollRun.records.map((record, index) => {
+    const rows = aggregatedRecords.map((record, index) => {
         const emp = employeeMap.get(record.empId);
         if (!emp) return null;
-
-        const position = positionMap.get(emp.positionId);
-        const salary = position?.monthlySalary || 0;
-        const contribution = calculateSssContribution(salary);
+        
+        const contribution = calculateSssContribution(record.totalGross, isProvisional);
 
         return {
             no: index + 1,
@@ -98,7 +113,7 @@ export const generateSssData = (employees, positions, selectedPayrollRun) => {
         headerData: {
             'Employer ID Number': MOCK_COMPANY_INFO.employerIdSss,
             'Employer Name': MOCK_COMPANY_INFO.employerName,
-            'Contribution Month': format(new Date(selectedPayrollRun.cutOff.split(' to ')[1]), 'MMMM yyyy'),
+            'Contribution Month': format(new Date(month), 'MMMM yyyy'),
         },
         columns: [
             { key: 'no', label: 'No.', editable: false, isPermanent: true },
@@ -114,17 +129,14 @@ export const generateSssData = (employees, positions, selectedPayrollRun) => {
     };
 };
 
-export const generatePhilhealthData = (employees, positions, selectedPayrollRun) => {
+export const generatePhilhealthData = (employees, aggregatedRecords, month, isProvisional) => {
     const employeeMap = new Map(employees.map(e => [e.id, e]));
-    const positionMap = new Map(positions.map(p => [p.id, p]));
     
-    const rows = selectedPayrollRun.records.map((record, index) => {
+    const rows = aggregatedRecords.map((record, index) => {
         const emp = employeeMap.get(record.empId);
         if (!emp) return null;
 
-        const position = positionMap.get(emp.positionId);
-        const salary = position?.monthlySalary || 0;
-        const contribution = calculatePhilhealthContribution(salary);
+        const contribution = calculatePhilhealthContribution(record.totalGross, isProvisional);
         
         return {
             no: index + 1,
@@ -142,7 +154,7 @@ export const generatePhilhealthData = (employees, positions, selectedPayrollRun)
         title: 'PhilHealth Contribution Report',
         headerData: {
             'Employer Name': MOCK_COMPANY_INFO.employerName,
-            'Contribution Month': format(new Date(selectedPayrollRun.cutOff.split(' to ')[1]), 'MMMM yyyy'),
+            'Contribution Month': format(new Date(month), 'MMMM yyyy'),
         },
         columns: [
             { key: 'no', label: 'No.', editable: false, isPermanent: true },
@@ -158,17 +170,14 @@ export const generatePhilhealthData = (employees, positions, selectedPayrollRun)
     };
 };
 
-export const generatePagibigData = (employees, positions, selectedPayrollRun) => {
+export const generatePagibigData = (employees, aggregatedRecords, month, isProvisional) => {
     const employeeMap = new Map(employees.map(e => [e.id, e]));
-    const positionMap = new Map(positions.map(p => [p.id, p]));
     
-    const rows = selectedPayrollRun.records.map((record, index) => {
+    const rows = aggregatedRecords.map((record, index) => {
         const emp = employeeMap.get(record.empId);
         if (!emp) return null;
 
-        const position = positionMap.get(emp.positionId);
-        const salary = position?.monthlySalary || 0;
-        const contribution = calculatePagibigContribution(salary);
+        const contribution = calculatePagibigContribution(record.totalGross, isProvisional);
 
         return {
             no: index + 1,
@@ -186,7 +195,7 @@ export const generatePagibigData = (employees, positions, selectedPayrollRun) =>
         title: 'Pag-IBIG Contribution Report',
         headerData: {
             'Employer Name': MOCK_COMPANY_INFO.employerName,
-            'Contribution Month': format(new Date(selectedPayrollRun.cutOff.split(' to ')[1]), 'MMMM yyyy'),
+            'Contribution Month': format(new Date(month), 'MMMM yyyy'),
         },
         columns: [
             { key: 'no', label: 'No.', editable: false, isPermanent: true },
@@ -197,6 +206,43 @@ export const generatePagibigData = (employees, positions, selectedPayrollRun) =>
             { key: 'employeeContribution', label: 'EE Share', editable: false, isPermanent: true },
             { key: 'employerContribution', label: 'ER Share', editable: false, isPermanent: true },
             { key: 'totalContribution', label: 'Total', editable: false, isPermanent: true },
+        ],
+        rows,
+    };
+};
+
+export const generateTinData = (employees, aggregatedRecords, month) => {
+    const employeeMap = new Map(employees.map(e => [e.id, e]));
+    
+    const rows = aggregatedRecords.map((record, index) => {
+        const emp = employeeMap.get(record.empId);
+        if (!emp) return null;
+
+        return {
+            no: index + 1,
+            tinNo: emp.tinNo || '',
+            lastName: emp.lastName || '',
+            firstName: emp.firstName || '',
+            middleName: emp.middleName || '',
+            grossCompensation: record.totalGross,
+            taxWithheld: record.totalTaxWithheld,
+        };
+    }).filter(Boolean);
+    
+    return {
+        title: 'Withholding Tax (TIN) Report',
+        headerData: {
+            'Employer Name': MOCK_COMPANY_INFO.employerName,
+            'For the Month of': format(new Date(month), 'MMMM yyyy'),
+        },
+        columns: [
+            { key: 'no', label: 'No.', editable: false, isPermanent: true },
+            { key: 'tinNo', label: 'TIN', editable: false, isPermanent: true },
+            { key: 'lastName', label: 'Last Name', editable: false, isPermanent: true },
+            { key: 'firstName', label: 'First Name', editable: false, isPermanent: true },
+            { key: 'middleName', label: 'MI', editable: false, isPermanent: true },
+            { key: 'grossCompensation', label: 'Gross Compensation', editable: false, isPermanent: true },
+            { key: 'taxWithheld', label: 'Tax Withheld', editable: false, isPermanent: true },
         ],
         rows,
     };

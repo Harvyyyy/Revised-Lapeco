@@ -28,7 +28,6 @@ const PayrollRunCard = ({ run, onViewDetails, onMarkAsPaid, onDelete }) => {
 
   const payDate = run.records[0]?.paymentDate || format(addDays(new Date(run.cutOff.split(' to ')[1]), 5), 'yyyy-MM-dd');
 
-  // Recalculate gross and deductions for display
   const { grossPay, totalDeductions } = run.records.reduce((acc, rec) => {
     acc.grossPay += (rec.earnings || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const statutory = Object.values(rec.deductions || {}).reduce((sum, val) => sum + val, 0);

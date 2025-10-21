@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import placeholderAvatar from '../../../assets/placeholder-profile.jpg';
-import useReportGenerator from '../../../hooks/useReportGenerator';
+import useReportGenerator from '../../hooks/useReportGenerator';
 import ReportPreviewModal from '../../modals/ReportPreviewModal';
+import ConfirmationModal from '../../modals/ConfirmationModal';
 
 const formatCurrency = (value) => {
     if (typeof value !== 'number') return '0.00';
@@ -15,14 +15,15 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
     const [statuses, setStatuses] = useState({});
+    const [showConfirmMarkAll, setShowConfirmMarkAll] = useState(false);
 
     const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator();
     const [showReportPreview, setShowReportPreview] = useState(false);
 
     const uniqueYears = useMemo(() => {
-        const years = new Set(payrolls.map(run => run.cutOff.split(' to ')[0].substring(0, 4)));
+        const years = new Set(payrolls.map(run => new Date(run.cutOff.split(' to ')[0]).getFullYear()));
         const currentYear = new Date().getFullYear();
-        years.add(currentYear.toString());
+        years.add(currentYear);
         return Array.from(years).sort((a, b) => b - a);
     }, [payrolls]);
 
@@ -70,12 +71,29 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
     }, [year, employees, payrolls]);
 
     useEffect(() => {
-        const initialStatuses = {};
-        calculationResults.details.forEach(emp => {
-            initialStatuses[emp.id] = 'Pending';
+        setStatuses(prev => {
+            const nextStatuses = { ...prev };
+            let hasChanges = false;
+
+            const detailIds = new Set();
+            calculationResults.details.forEach(emp => {
+                detailIds.add(emp.id);
+                if (!(emp.id in nextStatuses)) {
+                    nextStatuses[emp.id] = 'Pending';
+                    hasChanges = true;
+                }
+            });
+
+            Object.keys(nextStatuses).forEach(id => {
+                if (!detailIds.has(id)) {
+                    delete nextStatuses[id];
+                    hasChanges = true;
+                }
+            });
+
+            return hasChanges ? nextStatuses : prev;
         });
-        setStatuses(initialStatuses);
-    }, [calculationResults.details, year]);
+    }, [calculationResults.details]);
 
     const handleStatusChange = (employeeId, newStatus) => {
         setStatuses(prev => ({
@@ -146,6 +164,17 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
         setShowReportPreview(true);
     };
 
+    const handleConfirmMarkAll = () => {
+        setStatuses(prev => {
+            const updated = { ...prev };
+            filteredAndSortedDetails.forEach(item => {
+                updated[item.id] = 'Paid';
+            });
+            return updated;
+        });
+        setShowConfirmMarkAll(false);
+    };
+
     const handleClosePreview = () => {
         setShowReportPreview(false);
         if (pdfDataUri) {
@@ -188,6 +217,9 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                         </div>
                     </div>
                     <div className="controls-right d-flex gap-2">
+                        <button className="btn btn-sm btn-success" onClick={() => setShowConfirmMarkAll(true)} disabled={filteredAndSortedDetails.length === 0}>
+                            <i className="bi bi-check2-all me-2"></i>Mark All as Paid
+                        </button>
                         <button className="btn btn-sm btn-outline-secondary" onClick={handleExport} disabled={filteredAndSortedDetails.length === 0}>
                             <i className="bi bi-download me-2"></i>Export Excel
                         </button>
@@ -215,7 +247,12 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                                     <td>{item.id}</td>
                                     <td>
                                         <div className="d-flex align-items-center">
-                                            <img src={item.imageUrl || placeholderAvatar} alt={item.name} className="avatar-table me-3" />
+                                            <img
+                                                src={item.imageUrl}
+                                                alt={item.name}
+                                                size="sm"
+                                                className="me-3"
+                                            />
                                             <div>
                                                 <div className="fw-bold">{item.name}</div>
                                             </div>
@@ -251,6 +288,17 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                     </table>
                 </div>
             </div>
+            <ConfirmationModal
+                show={showConfirmMarkAll}
+                onClose={() => setShowConfirmMarkAll(false)}
+                onConfirm={handleConfirmMarkAll}
+                title="Mark All as Paid"
+                confirmText="Yes, Mark All"
+                confirmVariant="success"
+            >
+                <p>Mark all <strong>{filteredAndSortedDetails.length}</strong> displayed employees as <strong>Paid</strong> for {year}?</p>
+                <p className="text-muted">This updates only the statuses in this view.</p>
+            </ConfirmationModal>
             {(isLoading || pdfDataUri) && (
                 <ReportPreviewModal
                     show={showReportPreview}

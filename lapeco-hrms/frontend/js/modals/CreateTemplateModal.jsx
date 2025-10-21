@@ -6,7 +6,7 @@ const CreateTemplateModal = ({ show, onClose, onSave, positions, templateData })
   const initialFormState = {
     name: '',
     description: '',
-    columns: [{ key: 'shift', name: 'Shift' }], 
+    columns: [],
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -18,10 +18,15 @@ const CreateTemplateModal = ({ show, onClose, onSave, positions, templateData })
   useEffect(() => {
     if (show) {
       if (isEditMode && templateData) {
+        const rawColumns = templateData.columns ?? [];
+        const columnArray = Array.isArray(rawColumns)
+          ? rawColumns
+          : (rawColumns ? Object.values(rawColumns) : []);
+
         setFormData({
           name: templateData.name || '',
           description: templateData.description || '',
-          columns: (templateData.columns || ['shift']).map(colKey => ({
+          columns: columnArray.map(colKey => ({
             key: colKey,
             name: colKey.charAt(0).toUpperCase() + colKey.slice(1).replace(/_/g, ' ')
           })),
@@ -54,10 +59,6 @@ const CreateTemplateModal = ({ show, onClose, onSave, positions, templateData })
   };
 
   const handleRemoveColumn = (keyToRemove) => {
-    if (keyToRemove === 'shift') {
-        alert("The 'Shift' column is required and cannot be removed.");
-        return;
-    }
     setFormData(prev => ({
       ...prev,
       columns: prev.columns.filter(c => c.key !== keyToRemove)
@@ -76,38 +77,16 @@ const CreateTemplateModal = ({ show, onClose, onSave, positions, templateData })
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
-      setToast({ show: true, message: 'Template name is required.', type: 'error' });
-      return;
-    }
-
-    if (assignments.length === 0) {
-      setToast({ show: true, message: 'Assign at least one employee to the template.', type: 'error' });
-      return;
-    }
-
-    const columns = ['start_time', 'end_time', 'ot_hours', ...formData.columns.map(col => col.key)];
-    const normalizedAssignments = assignments
-      .filter(assignment => assignment.empId)
-      .map(assignment => ({
-        empId: assignment.empId,
-        start_time: assignment.start_time,
-        end_time: assignment.end_time,
-        ot_hours: assignment.ot_hours || '0',
-        notes: assignment.notes || null,
-      }));
+    if (!validate()) return;
 
     const payload = {
-      name: formData.name,
-      description: formData.description,
-      columns,
-      assignments: normalizedAssignments,
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      columns: formData.columns.map(col => col.key)
     };
 
-    const success = await onSave(payload, templateData?.id);
-    if (success) {
-      onClose();
-    }
+    await onSave(payload, templateData?.id);
+    onClose();
   };
 
   if (!show) return null;
@@ -125,12 +104,12 @@ const CreateTemplateModal = ({ show, onClose, onSave, positions, templateData })
               <p className="text-muted small">Templates define the structure (columns) for a new schedule.</p>
               <div className="mb-3">
                 <label htmlFor="templateName" className="form-label">Template Name*</label>
-                <input type="text" className={`form-control ${errors.name ? 'is-invalid' : ''}`} id="templateName" name="name" value={formData.name} onChange={handleChange} required />
+                <input type="text" className={`form-control ${errors.name ? 'is-invalid' : ''}`} id="templateName" name="name" placeholder="Enter template name" value={formData.name} onChange={handleChange} required />
                 {errors.name && <div className="invalid-feedback">{errors.name}</div>}
               </div>
               <div className="mb-3">
                 <label htmlFor="templateDescription" className="form-label">Description</label>
-                <textarea className="form-control" id="templateDescription" name="description" rows="2" value={formData.description} onChange={handleChange}></textarea>
+                <textarea className="form-control" id="templateDescription" name="description" placeholder="Enter description" rows="2" value={formData.description} onChange={handleChange}></textarea>
               </div>
               
               <div className="mb-3">

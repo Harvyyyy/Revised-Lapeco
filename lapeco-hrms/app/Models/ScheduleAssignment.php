@@ -15,13 +15,17 @@ class ScheduleAssignment extends Model
         'user_id',
         'start_time',
         'end_time',
+        'break_start',
+        'break_end',
         'ot_hours',
         'notes',
     ];
 
     protected $casts = [
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
+        'start_time' => 'string',
+        'end_time' => 'string',
+        'break_start' => 'string',
+        'break_end' => 'string',
     ];
 
     /**

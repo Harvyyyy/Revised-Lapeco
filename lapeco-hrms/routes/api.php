@@ -172,6 +172,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
 
     // Payroll - with role-based access control
     Route::middleware(['role.access:payroll,index'])->get('/payroll', [PayrollController::class, 'index']);
+    Route::middleware(['role.access:payroll,index'])->get('/payroll/compute', [PayrollController::class, 'compute']);
     Route::middleware(['role.access:payroll,store'])->post('/payroll/generate', [PayrollController::class, 'generate']);
     Route::middleware(['role.access:payroll,update'])->put('/payroll/{payroll}', [PayrollController::class, 'update']);
 
