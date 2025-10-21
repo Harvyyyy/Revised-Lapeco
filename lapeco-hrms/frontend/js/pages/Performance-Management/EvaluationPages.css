@@ -1,11 +1,9 @@
-/* src/components/pages/Performance-Management/EvaluationPages.css */
-
 /* ==========================================================================
    Main Evaluation Form Page Layout
    ========================================================================== */
 .evaluation-form-page {
     background-color: var(--bg-secondary);
-    padding-bottom: 100px; /* Space for the sticky footer */
+    padding-bottom: 100px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -189,4 +187,231 @@
 .dark-theme .star-rating i,
 .dark-theme .star-rating i:hover ~ i {
     color: var(--border-color);
+}
+
+
+/* ==========================================================================
+   Selector Card Styles (EvaluateTeamPage & EvaluateLeaderPage)
+   ========================================================================== */
+.evaluation-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.5rem;
+}
+
+.evaluation-selector-card-revised {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease-in-out;
+}
+.evaluation-selector-card-revised:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+    border-color: var(--app-success-color);
+}
+
+.evaluation-selector-card-revised .card-main-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+}
+
+.selector-avatar {
+    border: 1px solid var(--border-color);
+}
+
+.evaluation-selector-card-revised .selector-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.evaluation-selector-card-revised .selector-name,
+.evaluation-selector-card-revised .selector-position {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.selector-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.selector-position {
+    font-size: 0.9rem;
+}
+
+.selector-score {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.selector-score .text-muted {
+    font-size: 0.85rem;
+}
+
+.evaluation-selector-card-revised .card-status-panel {
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.status-item-revised {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.status-icon-revised {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    width: 20px;
+    text-align: center;
+}
+
+.status-icon-revised.due {
+    color: var(--warning-color);
+}
+
+.status-icon-revised.completed {
+    color: var(--app-success-color);
+}
+
+.status-label {
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.status-value {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-left: auto;
+}
+
+.status-badge-revised {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.3em 0.7em;
+    border-radius: 20px;
+    text-transform: uppercase;
+    margin-left: auto;
+}
+
+.status-badge-revised.status-due {
+    background-color: rgba(var(--warning-rgb), 0.2);
+    color: #997404;
+}
+.dark-theme .status-badge-revised.status-due {
+    color: var(--warning-color);
+}
+
+.status-badge-revised.status-completed {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.card-action-buttons-revised {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+}
+
+/* ==========================================================================
+   Status Summary Bar (EvaluateTeamPage)
+   ========================================================================== */
+.status-summary-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.summary-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background-color: var(--bg-primary);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    border: 2px solid var(--border-color);
+}
+
+.summary-card.interactive {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+.summary-card.interactive:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--card-shadow);
+}
+.summary-card.interactive.active {
+    background-color: rgba(var(--app-success-rgb), 0.05);
+    border-color: var(--app-success-color);
+}
+.dark-theme .summary-card.interactive.active {
+    background-color: rgba(var(--app-success-rgb), 0.1);
+}
+.summary-card.interactive.active .summary-value {
+    color: var(--app-success-color);
+}
+
+.summary-icon {
+    font-size: 1.5rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    color: #fff;
+}
+
+.summary-icon.icon-team { background-color: var(--text-secondary); }
+.summary-icon.icon-due { background-color: var(--warning-color); color: var(--text-primary); }
+.summary-icon.icon-completed { background-color: var(--app-success-color); }
+
+.summary-info .summary-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    transition: color 0.2s ease;
+}
+
+.summary-info .summary-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Controls Bar (EvaluateTeamPage)
+   ========================================================================== */
+.page-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.75rem 1rem;
+  box-shadow: var(--card-shadow);
+}
+
+.page-controls-bar .input-group {
+  flex: 1 1 350px;
+}
+
+.page-controls-bar .btn-group {
+  flex: 0 0 auto;
 }

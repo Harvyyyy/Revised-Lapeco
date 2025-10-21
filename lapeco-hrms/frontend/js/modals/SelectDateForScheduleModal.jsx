@@ -1,20 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { scheduleAPI } from '../services/api';
 
 const SelectDateForScheduleModal = ({ show, onClose, onProceed, existingScheduleDates }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+
+  const normalizedExistingDates = useMemo(() => {
+    if (!existingScheduleDates) return null;
+    return existingScheduleDates instanceof Set ? existingScheduleDates : new Set(existingScheduleDates);
+  }, [existingScheduleDates]);
 
   const handleProceed = () => {
     if (!selectedDate) {
       setError('You must select a date to proceed.');
       return;
     }
-    if (existingScheduleDates.has(selectedDate)) {
+    if (normalizedExistingDates && normalizedExistingDates.has(selectedDate)) {
       setError(`A schedule already exists for ${selectedDate}. Please choose a different date.`);
       return;
     }
-    onProceed(selectedDate);
-    onClose();
+    checkAndProceed(selectedDate);
   };
 
   const handleDateChange = (e) => {
@@ -29,6 +35,24 @@ const SelectDateForScheduleModal = ({ show, onClose, onProceed, existingSchedule
     setSelectedDate(new Date().toISOString().split('T')[0]);
     onClose();
   }
+
+  const checkAndProceed = async (date) => {
+    setChecking(true);
+    try {
+      const response = await scheduleAPI.getByDate(date);
+      const existingSchedule = response?.data?.schedule;
+      if (existingSchedule) {
+        setError(`A schedule already exists for ${date}. Please choose a different date.`);
+        return;
+      }
+      onProceed(date);
+      onClose();
+    } catch (err) {
+      setError('Unable to verify schedules. Please try again later.');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   if (!show) {
     return null;
@@ -58,8 +82,8 @@ const SelectDateForScheduleModal = ({ show, onClose, onProceed, existingSchedule
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-outline-secondary" onClick={handleClose}>Cancel</button>
-            <button type="button" className="btn btn-success" onClick={handleProceed}>
-              Proceed to Builder <i className="bi bi-arrow-right"></i>
+            <button type="button" className="btn btn-success" onClick={handleProceed} disabled={checking}>
+              {checking ? 'Checking...' : 'Proceed to Builder'} <i className="bi bi-arrow-right"></i>
             </button>
           </div>
         </div>

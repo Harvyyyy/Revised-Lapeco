@@ -1,14 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import placeholderAvatar from '../../assets/placeholder-profile.jpg';
-import StartEvaluationModal from '../../modals/StartEvaluationModal';
 import './EvaluationPages.css';
+import EvaluationSelectorCard from './EvaluationSelectorCard';
 
-const EvaluateLeaderPage = ({ currentUser, employees, positions }) => {
+const EvaluateLeaderPage = ({ currentUser, employees, positions, evaluations, activeEvaluationPeriod }) => {
   const navigate = useNavigate();
   const positionMap = useMemo(() => new Map(positions.map(p => [p.id, p.title])), [positions]);
-  
-  const [showModal, setShowModal] = useState(false);
 
   const teamLeader = useMemo(() => {
     if (!currentUser?.positionId) return null;
@@ -16,12 +13,44 @@ const EvaluateLeaderPage = ({ currentUser, employees, positions }) => {
       emp.positionId === currentUser.positionId && emp.isTeamLeader
     );
   }, [currentUser, employees]);
-  
-  const handleStartEvaluation = (startData) => {
-    navigate('/dashboard/performance/evaluate', { state: startData });
-    setShowModal(false);
-  };
 
+  const { leaderLastEvaluation, submissionForActivePeriod, isEditable } = useMemo(() => {
+    if (!teamLeader) return { leaderLastEvaluation: null, submissionForActivePeriod: null, isEditable: false };
+    
+    const leaderEvals = (evaluations || [])
+      .filter(ev => ev.employeeId === teamLeader.id)
+      .sort((a, b) => new Date(b.periodEnd) - new Date(a.periodEnd));
+      
+    const lastEval = leaderEvals[0] || null;
+
+    const submission = activeEvaluationPeriod ? leaderEvals.find(ev => 
+        ev.evaluatorId === currentUser.id &&
+        ev.periodStart === activeEvaluationPeriod.evaluationStart &&
+        ev.periodEnd === activeEvaluationPeriod.evaluationEnd
+    ) : null;
+    
+    const editable = activeEvaluationPeriod ? new Date() <= new Date(activeEvaluationPeriod.activationEnd) : false;
+
+    return { leaderLastEvaluation: lastEval, submissionForActivePeriod: submission, isEditable: editable };
+  }, [teamLeader, evaluations, currentUser, activeEvaluationPeriod]);
+  
+  const handleAction = (action, data) => {
+    if ((action === 'start' || action === 'edit') && teamLeader && activeEvaluationPeriod) {
+        const state = {
+            employeeId: teamLeader.id,
+            evaluationStart: activeEvaluationPeriod.evaluationStart,
+            evaluationEnd: activeEvaluationPeriod.evaluationEnd
+        };
+        if (action === 'edit' && data.submission) {
+            state.evalId = data.submission.id;
+        }
+        navigate('/dashboard/performance/evaluate', { state });
+    } else if (action === 'review') {
+      // In a real app, you would open the ViewEvaluationModal here
+      alert(`Viewing evaluation for ${data.employeeId}. Score: ${data.overallScore.toFixed(1)}%`);
+    }
+  };
+  
   return (
     <div className="container-fluid p-0 page-module-container">
       <header className="page-header mb-4">
@@ -29,43 +58,42 @@ const EvaluateLeaderPage = ({ currentUser, employees, positions }) => {
         <p className="page-subtitle text-muted">Provide your feedback on your team leader's performance.</p>
       </header>
       
-      {teamLeader ? (
-        <div className="evaluation-selector-grid">
-          <div className="card evaluation-selector-card">
-            <div className="card-body d-flex align-items-center">
-              <img 
-                src={teamLeader.avatarUrl || placeholderAvatar} 
-                alt={teamLeader.name} 
-                className="selector-avatar"
-              />
-              <div className="selector-info">
-                <h5 className="selector-name">{teamLeader.name}</h5>
-                <p className="selector-position text-muted mb-0">
-                  Team Leader, {positionMap.get(teamLeader.positionId) || 'Unassigned'}
-                </p>
-              </div>
-              <button 
-                className="btn btn-success ms-auto"
-                onClick={() => setShowModal(true)}
-              >
-                Start Evaluation
-              </button>
-            </div>
+      {activeEvaluationPeriod ? (
+        <div className="alert alert-success d-flex align-items-center" role="alert">
+          <i className="bi bi-broadcast-pin me-3 fs-4"></i>
+          <div>
+            <h6 className="alert-heading mb-0">ACTIVE: {activeEvaluationPeriod.name}</h6>
+            <small>You are evaluating performance for the period of <strong>{activeEvaluationPeriod.evaluationStart} to {activeEvaluationPeriod.evaluationEnd}</strong>. Submissions are open until <strong>{activeEvaluationPeriod.activationEnd}</strong>.</small>
           </div>
         </div>
       ) : (
-        <div className="text-center p-5 bg-light rounded">
-          <p>Your team leader is not currently assigned. Please contact HR.</p>
+        <div className="alert alert-warning d-flex align-items-center" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+          <div>
+            <h6 className="alert-heading mb-0">Evaluations Currently Closed</h6>
+            <small>There is no active evaluation period. Please wait for HR to open a new evaluation cycle.</small>
+          </div>
         </div>
       )}
-
-      {showModal && teamLeader && (
-        <StartEvaluationModal
-            show={showModal}
-            onClose={() => setShowModal(false)}
-            onStart={handleStartEvaluation}
-            employees={[teamLeader]}
-        />
+      
+      {teamLeader ? (
+        <div className="evaluation-selector-grid mt-4">
+          <EvaluationSelectorCard
+            employee={teamLeader}
+            positionTitle={`Team Leader, ${positionMap.get(teamLeader.positionId) || 'Unassigned'}`}
+            lastEvaluation={leaderLastEvaluation}
+            onAction={handleAction}
+            activePeriod={activeEvaluationPeriod}
+            submissionForActivePeriod={submissionForActivePeriod}
+            isEditable={isEditable}
+          />
+        </div>
+      ) : (
+        <div className="text-center p-5 bg-light rounded mt-4">
+            <i className="bi bi-person-video3 fs-1 text-muted mb-3 d-block"></i>
+            <h5 className="text-muted">No Team Leader Assigned</h5>
+            <p className="text-muted">You are not currently assigned to a team with a designated leader.</p>
+        </div>
       )}
     </div>
   );

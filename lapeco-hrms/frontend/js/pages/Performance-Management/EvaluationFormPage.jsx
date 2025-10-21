@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import RatingScaleRow from './RatingScaleRow';
 import TextareaSection from './TextareaSection';
@@ -6,13 +6,25 @@ import RatingScaleGuide from './RatingScaleGuide';
 import ConfirmationModal from '../../modals/ConfirmationModal';
 import './EvaluationPages.css';
 
-const EvaluationFormPage = ({ currentUser, employees, positions, evaluationFactors, handlers }) => {
+const EvaluationFormPage = ({ currentUser, employees, positions, evaluations, evaluationFactors, handlers }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { employeeId, periodStart, periodEnd } = location.state || {};
+  const { employeeId, evaluationStart, evaluationEnd, evalId } = location.state || {};
 
+  const isEditMode = Boolean(evalId);
+  
   const [factorScores, setFactorScores] = useState({});
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  useEffect(() => {
+    if (isEditMode) {
+      // FIX: Add fallback to an empty array to prevent .find on undefined
+      const existingEvaluation = (evaluations || []).find(e => e.id === evalId);
+      if (existingEvaluation) {
+        setFactorScores(existingEvaluation.factorScores || {});
+      }
+    }
+  }, [isEditMode, evalId, evaluations]);
 
   const employee = useMemo(() => employees.find(e => e.id === employeeId), [employees, employeeId]);
   const position = useMemo(() => positions.find(p => p.id === employee?.positionId), [positions, employee]);
@@ -56,7 +68,7 @@ const EvaluationFormPage = ({ currentUser, employees, positions, evaluationFacto
 
   const handleSubmit = () => {
     const ratedItemCount = allRateableItems.filter(item => factorScores[item.id]?.score > 0).length;
-    if (ratedItemCount < allRateableItems.length) {
+    if (ratedItemCount < allRateableItems.length && !isEditMode) {
       if (!window.confirm(`You have not rated all ${allRateableItems.length} criteria. Are you sure you want to submit?`)) {
         return;
       }
@@ -65,12 +77,14 @@ const EvaluationFormPage = ({ currentUser, employees, positions, evaluationFacto
     handlers.saveEvaluation({
       employeeId,
       evaluatorId: currentUser.id,
-      periodStart, periodEnd, status: 'Completed',
+      periodStart: evaluationStart,
+      periodEnd: evaluationEnd,
+      status: 'Completed',
       factorScores: factorScores,
       overallScore: parseFloat(finalScore),
-    });
-    alert(`Evaluation for ${employee.name} submitted successfully!`);
-    navigate('/dashboard/performance');
+    }, evalId); // Pass the evalId if in edit mode
+    alert(`Evaluation for ${employee.name} ${isEditMode ? 'updated' : 'submitted'} successfully!`);
+    navigate(-1); // Go back to the previous page
   };
 
   if (!employee || !position) {
@@ -87,11 +101,11 @@ const EvaluationFormPage = ({ currentUser, employees, positions, evaluationFacto
       <div className="container-fluid p-0 page-module-container evaluation-form-page">
         <div className="evaluation-header">
           <div className="header-info">
-            <h1>{employee.name}</h1>
-            <p className="text-muted mb-0">{position.title} | {periodStart} to {periodEnd}</p>
+            <h1>{isEditMode ? 'Edit Evaluation for ' : ''}{employee.name}</h1>
+            <p className="text-muted mb-0">{position.title} | {evaluationStart} to {evaluationEnd}</p>
           </div>
           <button className="btn btn-outline-secondary" onClick={handleCancel}>
-            <i className="bi bi-x-lg me-2"></i>Cancel Evaluation
+            <i className="bi bi-x-lg me-2"></i>Cancel
           </button>
         </div>
         
@@ -127,7 +141,9 @@ const EvaluationFormPage = ({ currentUser, employees, positions, evaluationFacto
         <div className="evaluation-footer">
           <div className="overall-score">Overall Score: <span>{finalScore}%</span></div>
           <div className="footer-actions">
-            <button className="btn btn-success" onClick={handleSubmit}>Submit Evaluation</button>
+            <button className="btn btn-success" onClick={handleSubmit}>
+              {isEditMode ? 'Update Submission' : 'Submit Evaluation'}
+            </button>
           </div>
         </div>
       </div>
@@ -140,8 +156,8 @@ const EvaluationFormPage = ({ currentUser, employees, positions, evaluationFacto
         confirmText="Yes, Discard Changes"
         confirmVariant="danger"
       >
-        <p>Are you sure you want to cancel this evaluation?</p>
-        <p className="fw-bold">All unsaved progress will be lost.</p>
+        <p>Are you sure you want to cancel?</p>
+        <p className="fw-bold">All unsaved changes will be lost.</p>
       </ConfirmationModal>
     </>
   );

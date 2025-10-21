@@ -19,6 +19,10 @@ class PositionController extends Controller
                 'name' => $pos->name,
                 'description' => $pos->description,
                 'monthly_salary' => $pos->monthly_salary,
+                'base_rate_per_hour' => $pos->base_rate_per_hour,
+                'overtime_rate_per_hour' => $pos->overtime_rate_per_hour,
+                'night_diff_rate_per_hour' => $pos->night_diff_rate_per_hour,
+                'late_deduction_per_minute' => $pos->late_deduction_per_minute,
                 'employeeCount' => $employeeCount,
             ];
         });
@@ -43,6 +47,10 @@ class PositionController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'monthly_salary' => 'nullable|numeric|min:0',
+            'base_rate_per_hour' => 'required|numeric|min:0',
+            'overtime_rate_per_hour' => 'nullable|numeric|min:0',
+            'night_diff_rate_per_hour' => 'nullable|numeric|min:0',
+            'late_deduction_per_minute' => 'nullable|numeric|min:0',
         ]);
 
         $position = Position::create($validated);
@@ -55,6 +63,10 @@ class PositionController extends Controller
             'name' => 'sometimes|string|max:255',
             'description' => 'sometimes|nullable|string',
             'monthly_salary' => 'sometimes|nullable|numeric|min:0',
+            'base_rate_per_hour' => 'sometimes|numeric|min:0',
+            'overtime_rate_per_hour' => 'sometimes|nullable|numeric|min:0',
+            'night_diff_rate_per_hour' => 'sometimes|nullable|numeric|min:0',
+            'late_deduction_per_minute' => 'sometimes|nullable|numeric|min:0',
         ]);
 
         $position->update($validated);

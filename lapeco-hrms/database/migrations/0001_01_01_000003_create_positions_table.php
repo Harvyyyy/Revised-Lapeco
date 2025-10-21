@@ -10,8 +10,12 @@ return new class extends Migration {
         Schema::create('positions', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->text('description');
-            $table->integer('monthly_salary');
+            $table->text('description')->nullable();
+            $table->integer('monthly_salary')->nullable();
+            $table->decimal('base_rate_per_hour', 10, 2)->default(0);
+            $table->decimal('overtime_rate_per_hour', 10, 2)->default(0);
+            $table->decimal('night_diff_rate_per_hour', 10, 2)->default(0);
+            $table->decimal('late_deduction_per_minute', 10, 2)->default(0);
             $table->timestamps();
         });
     }

@@ -27,6 +27,15 @@ lapeco-hrms/storage/pail
 lapeco-hrms/vendor/
 lapeco-hrms/Homestead.json
 lapeco-hrms/Homestead.yaml
+lapeco-hrms/.phpunit.result.cache
+lapeco-hrms/storage/logs
+lapeco-hrms/storage/pail
+lapeco-hrms/storage/framework/cache
+lapeco-hrms/storage/framework/sessions
+lapeco-hrms/storage/framework/views
+lapeco-hrms/storage/framework/testing
+lapeco-hrms/storage/framework/data
+lapeco-hrms/storage/framework/data
 
 # --- Recr_LAPECO (React app) ---
 Recr_LAPECO/node_modules/

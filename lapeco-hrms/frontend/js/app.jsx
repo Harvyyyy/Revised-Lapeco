@@ -48,6 +48,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import MyCasesPage from './pages/My-Cases/MyCasesPage';
 import IncedentReport from './pages/Submit-Report/SubmitReportPage';
 import NotFoundPage from './pages/NotFound/NotFoundPage';
+import ThirteenthMonthPage from './pages/Payroll-Management/ThirteenthMonthPage';
 
 // Import layout, context, and components
 import Layout from './layout/Layout';
@@ -113,6 +114,7 @@ function App() {
               <Route index element={<Navigate to="history" replace />} />
               <Route path="history" element={<PayrollHistoryPage />} />
               <Route path="generate" element={<PayrollGenerationPage />} />
+              <Route path="13th-month" element={<ThirteenthMonthPage />} />
             </Route>
             <Route path="dashboard/holiday-management" element={<HolidayManagementPage />} />
             <Route path="dashboard/contributions-management" element={<ContributionsManagementPage />} />

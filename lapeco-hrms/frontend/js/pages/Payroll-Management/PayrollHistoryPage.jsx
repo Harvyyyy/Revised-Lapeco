@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import PayrollRunCard from './PayrollRunCard';
 import PayrollRunDetailModal from './PayrollRunDetailModal';
 import PayrollAdjustmentModal from '../../modals/PayrollAdjustmentModal';
@@ -7,8 +7,9 @@ import ReportConfigurationModal from '../../modals/ReportConfigurationModal';
 import ReportPreviewModal from '../../modals/ReportPreviewModal';
 import useReportGenerator from '../../hooks/useReportGenerator';
 import { reportsConfig } from '../../config/reports.config';
+import { payrollAPI } from '../../services/api';
 
-const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeaveRequests }) => {
+const PayrollHistoryPage = ({ payrolls=[], employees=[], positions=[], handlers, allLeaveRequests }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortConfig, setSortConfig] = useState({ key: 'payPeriod', direction: 'desc' });
@@ -28,11 +29,57 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
   const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator();
   const [showReportPreview, setShowReportPreview] = useState(false);
 
-
   const employeeMap = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
 
+  const [fetchedPayrolls, setFetchedPayrolls] = useState([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState('');
+
+  useEffect(() => {
+    if (payrolls.length > 0) {
+      return;
+    }
+
+    let isMounted = true;
+    const loadPayrolls = async () => {
+      setIsFetching(true);
+      setFetchError('');
+      try {
+        const { data } = await payrollAPI.getAll();
+        if (!isMounted) return;
+        setFetchedPayrolls(Array.isArray(data?.payroll_runs) ? data.payroll_runs : []);
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error.response?.data?.message || 'Failed to load payroll runs.';
+        setFetchError(message);
+        setFetchedPayrolls([]);
+      } finally {
+        if (isMounted) {
+          setIsFetching(false);
+        }
+      }
+    };
+
+    loadPayrolls();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [payrolls.length]);
+
+  const resolvedPayrolls = payrolls.length > 0 ? payrolls : fetchedPayrolls;
+
+  const noopHandlers = useMemo(() => ({
+    updatePayrollRecord: () => {},
+    saveEmployee: () => {},
+    markRunAsPaid: () => {},
+    deletePayrollRun: () => {},
+  }), []);
+
+  const resolvedHandlers = handlers ?? noopHandlers;
+
   const processedPayrolls = useMemo(() => {
-    return payrolls.map(run => {
+    return resolvedPayrolls.map(run => {
       const { totalNet } = run.records.reduce((acc, rec) => {
           const totalEarnings = (rec.earnings || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
           const totalStatutory = Object.values(rec.deductions || {}).reduce((sum, val) => sum + val, 0);
@@ -44,7 +91,7 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
       const isPaid = run.records.every(r => r.status === 'Paid');
       return { ...run, totalNet, isPaid };
     });
-  }, [payrolls]);
+  }, [resolvedPayrolls]);
 
   const filteredAndSortedPayrolls = useMemo(() => { 
     let results = [...processedPayrolls];
@@ -107,12 +154,12 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
   };
 
   const handleSaveAdjustments = (payrollId, updatedData) => {
-    handlers.updatePayrollRecord(payrollId, updatedData);
+    resolvedHandlers.updatePayrollRecord(payrollId, updatedData);
     handleCloseAllModals();
   };
   
   const handleSaveEmployeeInfo = (employeeId, updatedData) => {
-      handlers.saveEmployee(updatedData, employeeId);
+      resolvedHandlers.saveEmployee(updatedData, employeeId);
   };
   
   // --- MODIFIED: Opens the confirmation modal instead of using window.confirm ---
@@ -123,13 +170,13 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
   // --- NEW: Handler for modal confirmation ---
   const confirmMarkAsPaid = () => {
     if (!runToMarkAsPaid) return;
-    handlers.markRunAsPaid(runToMarkAsPaid.runId);
+    resolvedHandlers.markRunAsPaid(runToMarkAsPaid.runId);
     setRunToMarkAsPaid(null);
   };
 
   const handleConfirmDelete = () => {
     if (runToDelete) {
-      handlers.deletePayrollRun(runToDelete.runId);
+      resolvedHandlers.deletePayrollRun(runToDelete.runId);
       setRunToDelete(null);
       handleCloseAllModals();
     }
@@ -144,7 +191,7 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
   };
   
   const handleRunReport = (reportId, params) => {
-    generateReport(reportId, params, { payrolls });
+    generateReport(reportId, params, { payrolls: resolvedPayrolls });
     setShowReportConfigModal(false);
     setShowReportPreview(true);
   };
@@ -194,6 +241,8 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
         </div>
       </div>
       
+      {fetchError && <div className="alert alert-danger">{fetchError}</div>}
+
       <div className="payroll-run-grid">
         {filteredAndSortedPayrolls.map((run) => (
           <PayrollRunCard
@@ -205,7 +254,9 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
           />
         ))}
       </div>
-      {filteredAndSortedPayrolls.length === 0 && <p className="text-center text-muted mt-4">No payroll history matches your criteria.</p>}
+      {isFetching && <p className="text-center text-muted mt-4">Loading payroll runs...</p>}
+
+      {!isFetching && filteredAndSortedPayrolls.length === 0 && <p className="text-center text-muted mt-4">No payroll history matches your criteria.</p>}
 
       {selectedRun && (
         <PayrollRunDetailModal
@@ -266,7 +317,7 @@ const PayrollHistoryPage = ({ payrolls, employees, positions, handlers, allLeave
         onClose={handleCloseAllModals}
         reportConfig={reportToGenerate}
         onRunReport={handleRunReport}
-        payrolls={payrolls}
+        payrolls={resolvedPayrolls}
       />
 
       {(isLoading || pdfDataUri) && (

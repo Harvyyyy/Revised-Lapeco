@@ -27,7 +27,7 @@ class Schedule extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'schedule_assignments')
-                    ->withPivot(['start_time', 'end_time', 'notes'])
+                    ->withPivot(['start_time', 'end_time', 'break_start', 'break_end', 'notes'])
                     ->withTimestamps();
     }
 

@@ -1,6 +1,7 @@
-.payroll-adjustment-modal-dialog.modal-lg {
-  max-width: 900px;
+.payroll-adjustment-modal-dialog.modal-xl {
+  max-width: 1200px;
 }
+
 .payroll-adjustment-modal-content .modal-header {
   background-color: var(--bg-secondary);
 }
@@ -15,18 +16,23 @@
 }
 .payroll-adjustment-modal-content .modal-body {
   padding: 1rem 1.25rem;
-  max-height: 65vh;
+  max-height: 70vh;
   overflow-y: auto;
+  background-color: var(--bg-primary);
 }
 .payroll-adjustment-modal-content .modal-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
 }
+.modal-footer .footer-actions-left,
 .modal-footer .footer-actions-right {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.75rem;
+    align-items: center;
 }
 .modal-footer .status-selector {
     display: flex;
@@ -38,33 +44,245 @@
     font-weight: 500;
 }
 
-.nav-tabs .nav-link { font-weight: 500; color: var(--text-secondary); }
-.nav-tabs .nav-link.active { color: var(--app-success-color); border-color: var(--border-color) var(--border-color) var(--bg-primary); }
-.tab-content { padding: 1.5rem 0.5rem; min-height: 250px; }
+/* --- Tab Styles --- */
+.nav-tabs {
+  border-bottom-color: var(--border-color);
+}
+.nav-tabs .nav-link {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.nav-tabs .nav-link.active {
+  color: var(--app-success-color);
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color) var(--border-color) var(--bg-secondary);
+}
+.dark-theme .nav-tabs .nav-link.active {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color) var(--border-color) var(--bg-tertiary);
+}
+.tab-content {
+  padding: 1.5rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+.dark-theme .tab-content {
+    background-color: var(--bg-tertiary);
+}
 
+/* --- Form Grid & Table Styles --- */
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1rem 2rem;
+}
+.form-grid-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
 }
 .form-group { display: flex; flex-direction: column; }
 .form-group label { font-size: 0.85rem; font-weight: 500; color: var(--text-primary); margin-bottom: 0.25rem; }
-.form-group .form-control, .form-group .form-control-plaintext { font-size: 0.9rem; text-align: right; }
-.form-group .form-control-plaintext { padding-right: 0.75rem; border: 1px solid transparent; font-weight: 500; }
-.form-group .input-group .form-control {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+.form-group .form-control-plaintext { font-size: 0.9rem; text-align: right; padding-right: 0.75rem; border: 1px solid transparent; font-weight: 500; }
+
+.breakdown-table .form-control-inline {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    transition: all 0.2s ease-in-out;
+}
+.breakdown-table .form-control-inline:focus {
+    background-color: var(--bg-primary);
+    border-color: var(--app-success-color);
+    box-shadow: none;
+}
+tr:hover .form-control-inline {
+    background-color: var(--bg-primary);
 }
 
-.summary-section { padding: 1rem 1.5rem; background-color: var(--bg-secondary); border-radius: var(--border-radius); max-width: 500px; margin: 2rem auto; }
-.summary-row { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 0; font-size: 1rem; }
+/* --- Summary Section Styles --- */
+.summary-section {
+  padding: 1rem 1.5rem;
+  max-width: 500px;
+  margin: 2rem auto;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 0;
+  font-size: 1.1rem;
+}
 .summary-row .label { font-weight: 500; color: var(--text-secondary); }
-.summary-row .value { font-weight: 600; color: var(--text-primary); }
-.summary-row.total-deductions .value { color: var(--danger-color); }
-.summary-row.net-pay { font-size: 1.3rem; font-weight: bold; border-top: 2px solid var(--border-color); margin-top: 0.5rem; }
+.summary-row .value { font-weight: 600; color: var(--text-primary); font-family: monospace; }
+.summary-row .value.value-positive { color: var(--app-success-color); }
+.summary-row .value.value-negative { color: var(--danger-color); }
+.summary-row.net-pay { font-size: 1.5rem; font-weight: bold; border-top: 2px solid var(--border-color); margin-top: 0.75rem; padding-top: 1rem; }
 .net-pay .label { color: var(--text-primary); }
 .net-pay .value { color: var(--app-success-color); }
 
+/* --- Employee Info Tab Styles --- */
+.info-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+.info-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0;
+}
+
+/* --- Deductions Tab UI --- */
+.deductions-tab-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    padding: 0.5rem;
+}
+
+.deductions-column .form-grid {
+    grid-template-columns: 1fr;
+}
+
+.deduction-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.deduction-item-row {
+    display: grid;
+    grid-template-columns: 1fr auto 30px;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.deduction-item-row .input-group {
+    max-width: 150px;
+}
+
+.btn-remove-row {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+tr:hover .btn-remove-row, .deduction-item-row:hover .btn-remove-row, .grid-row:hover .btn-remove-row {
+    opacity: 1;
+}
+
 .dark-theme .form-group .form-control-plaintext {
     color: var(--text-primary);
+}
+
+.breakdown-table td input[type="date"] {
+    min-width: 140px;
+}
+
+.dark-theme .table-light {
+    --bs-table-bg: var(--bg-tertiary);
+    --bs-table-color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+/* --- Earnings Grid Layout --- */
+.earnings-grid {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.grid-header, .grid-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 40px;
+    gap: 1rem;
+    align-items: center;
+    padding: 0 0.75rem;
+}
+
+.grid-header {
+    background-color: var(--bg-secondary);
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.grid-row {
+    border-bottom: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+.grid-row:last-child {
+    border-bottom: none;
+}
+.grid-row:hover {
+    background-color: var(--bg-secondary);
+}
+
+.grid-row .form-control-inline {
+    width: 100%;
+    padding: 0.5rem 0.5rem;
+    background-color: transparent;
+    border: 1px solid transparent;
+}
+.grid-row .form-control-inline[disabled],
+.grid-row .form-control-inline[readonly] {
+    background-color: transparent !important;
+    border-color: transparent !important;
+}
+
+.grid-row .form-control-inline:focus {
+    background-color: var(--bg-primary);
+    border-color: var(--app-success-color);
+}
+
+
+/* --- Leave Balances Tab --- */
+.leave-balances-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem 3rem;
+    margin-top: 1rem;
+}
+
+.leave-balance-item {
+    margin-bottom: 1.25rem;
+}
+
+.leave-balance-item .balance-label {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.leave-balance-item .balance-summary-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.leave-earnings-breakdown .table {
+    font-size: 0.9rem;
+}
+.leave-earnings-breakdown .table tfoot {
+    font-weight: 600;
 }

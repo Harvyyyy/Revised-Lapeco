@@ -58,7 +58,7 @@ const DailyScheduleView = ({
                       <tr key={idx}>
                         {dailyViewColumns.map((col) => {
                           const value = sch[col.key];
-                          if (col.key === 'start_time' || col.key === 'end_time') {
+                          if (['start_time', 'end_time', 'break_start', 'break_end'].includes(col.key)) {
                             return <td key={col.key}>{formatTimeToAMPM(value)}</td>;
                           } else if (col.key === 'ot_hours') {
                             return (

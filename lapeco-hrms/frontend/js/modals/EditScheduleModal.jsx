@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AddColumnModal from './AddColumnModal';
-import { scheduleAPI } from '../services/api';
+import { scheduleAPI, employeeAPI } from '../services/api';
 import '../pages/Schedule-Management/ScheduleManagementPage.css';
 
 const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, initialAssignments = [] }) => {
@@ -8,11 +8,15 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
   const [columns, setColumns] = useState([
     { key: 'start_time', name: 'Start Time' },
     { key: 'end_time', name: 'End Time' },
+    { key: 'break_start', name: 'Break Start' },
+    { key: 'break_end', name: 'Break End' },
     { key: 'ot_hours', name: 'OT Hours' }
   ]);
   const [gridData, setGridData] = useState([]);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
 
   useEffect(() => {
     const loadScheduleData = async () => {
@@ -72,6 +76,8 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
               positionName: assignment.position_name || '',
               start_time: formatTime(assignment.start_time),
               end_time: formatTime(assignment.end_time),
+              break_start: formatTime(assignment.break_start),
+              break_end: formatTime(assignment.break_end),
               ot_hours: assignment.ot_hours || '',
               notes: assignment.notes || ''
             };
@@ -83,7 +89,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
           } else if (initialAssignments && initialAssignments.length > 0) {
             setGridData(mapAssignmentsToRows(initialAssignments));
           } else {
-            setGridData([{ empId: '', employeeName: '', employeeId: '', positionName: '', start_time: '', end_time: '', ot_hours: '', notes: '' }]);
+            setGridData([{ empId: '', employeeName: '', employeeId: '', positionName: '', start_time: '', end_time: '', break_start: '', break_end: '', ot_hours: '', notes: '' }]);
           }
         } catch (error) {
         } finally {
@@ -95,8 +101,56 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
     loadScheduleData();
   }, [show, scheduleId, scheduleDate]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEmployees = async () => {
+      if (!show) return;
+      setEmployeesLoading(true);
+      try {
+        const response = await employeeAPI.getList();
+        if (!isMounted) return;
+        const rawEmployees = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        const normalized = rawEmployees.map(emp => {
+          const name = emp.name
+            || [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(' ').trim()
+            || emp.full_name
+            || emp.username
+            || '';
+          let positionName = '';
+          if (emp.position_name) {
+            positionName = emp.position_name;
+          } else if (emp.position?.name) {
+            positionName = emp.position.name;
+          } else if (emp.position) {
+            positionName = emp.position;
+          }
+          return {
+            id: emp.id,
+            name,
+            positionName,
+          };
+        });
+        setEmployees(normalized);
+      } catch (error) {
+        console.error('Failed to load employees for schedule editing:', error);
+      } finally {
+        if (isMounted) {
+          setEmployeesLoading(false);
+        }
+      }
+    };
+
+    fetchEmployees();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [show]);
+
   const addEmployeeRow = () => {
     const newRow = columns.reduce((acc, col) => ({ ...acc, [col.key]: '' }), { empId: '', employeeName: '', employeeId: '', positionName: '', notes: '' });
+    if (!('break_start' in newRow)) newRow.break_start = '';
+    if (!('break_end' in newRow)) newRow.break_end = '';
     setGridData(prev => [...prev, newRow]);
   };
 
@@ -109,7 +163,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
   };
 
   const handleDeleteColumn = (keyToDelete) => {
-    if (keyToDelete === 'start_time' || keyToDelete === 'end_time') {
+    if (['start_time', 'end_time', 'break_start', 'break_end'].includes(keyToDelete)) {
       alert('The Start Time and End Time columns cannot be deleted.');
       return;
     }
@@ -129,8 +183,16 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
 
   const handleEmpIdChange = (rowIndex, value) => {
     const newGrid = [...gridData];
-    newGrid[rowIndex].empId = value;
-    newGrid[rowIndex].employeeId = value;
+    const selectedEmployee = employees.find(emp => String(emp.id) === String(value));
+    newGrid[rowIndex].empId = value || '';
+    newGrid[rowIndex].employeeId = value || '';
+    if (selectedEmployee) {
+      newGrid[rowIndex].employeeName = selectedEmployee.name || '';
+      newGrid[rowIndex].positionName = selectedEmployee.positionName || '';
+    } else {
+      newGrid[rowIndex].employeeName = '';
+      newGrid[rowIndex].positionName = '';
+    }
     setGridData(newGrid);
   };
 
@@ -143,7 +205,23 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
       if (row.empId) {
         if(uniqueEmpIds.has(row.empId)) { hasDuplicates = true; }
         uniqueEmpIds.add(row.empId);
-        const entryData = columns.reduce((acc, col) => { if(row[col.key] && String(row[col.key]).trim() !== '') acc[col.key] = row[col.key]; return acc; }, {});
+        const entryData = columns.reduce((acc, col) => {
+          const value = row[col.key];
+          if (['break_start', 'break_end'].includes(col.key)) {
+            acc[col.key] = value && String(value).trim() !== '' ? value : null;
+          } else if (col.key === 'ot_hours') {
+            acc[col.key] = value && value !== '---' ? value : '0';
+          } else if (value && String(value).trim() !== '') {
+            acc[col.key] = value;
+          }
+          return acc;
+        }, {});
+        if (!('break_start' in entryData) && Object.prototype.hasOwnProperty.call(row, 'break_start')) {
+          entryData.break_start = row.break_start ? row.break_start : null;
+        }
+        if (!('break_end' in entryData) && Object.prototype.hasOwnProperty.call(row, 'break_end')) {
+          entryData.break_end = row.break_end ? row.break_end : null;
+        }
         // Require both start_time and end_time
         if (Object.keys(entryData).length > 0 && entryData.start_time && entryData.end_time) {
           updatedScheduleEntries.push({ ...entryData, empId: row.empId, date: scheduleDate, name: scheduleName, notes: row.notes || null });
@@ -188,7 +266,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
                         (col.key !== 'user_name' && col.key !== 'employee_id' && col.key !== 'position_name') && (
                           <th key={col.key} className="text-center custom-column">
                             {col.name}
-                            {(col.key !== 'start_time' && col.key !== 'end_time') && (<button type="button" className="btn btn-sm btn-outline-danger p-0 ms-2 delete-column-btn" onClick={() => handleDeleteColumn(col.key)} title={`Delete '${col.name}' column`}><i className="bi bi-x"></i></button>)}
+                            {(!['start_time', 'end_time', 'break_start', 'break_end'].includes(col.key)) && (<button type="button" className="btn btn-sm btn-outline-danger p-0 ms-2 delete-column-btn" onClick={() => handleDeleteColumn(col.key)} title={`Delete '${col.name}' column`}><i className="bi bi-x"></i></button>)}
                           </th>
                         )
                       ))}
@@ -201,20 +279,24 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
                           <td>
                             <input
                               type="text"
-                              className="form-control form-control-sm"
-                              value={row.empId || ''}
-                              onChange={e => handleEmpIdChange(rowIndex, e.target.value)}
-                              placeholder="Employee ID"
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="text"
                               className="form-control form-control-sm readonly-input"
-                              value={row.employeeName || ''}
+                              value={row.employeeId || ''}
                               readOnly
                               disabled
                             />
+                          </td>
+                          <td>
+                            <select
+                              className="form-select form-select-sm"
+                              value={row.empId || ''}
+                              onChange={e => handleEmpIdChange(rowIndex, e.target.value)}
+                              disabled={employeesLoading}
+                            >
+                              <option value="">Select employee</option>
+                              {employees.map(emp => (
+                                <option key={emp.id} value={emp.id}>{emp.name || emp.id}</option>
+                              ))}
+                            </select>
                           </td>
                           <td>
                             <input
@@ -228,7 +310,7 @@ const EditScheduleModal = ({ show, onClose, onSave, scheduleId, scheduleDate, in
                           {columns.map(col => (
                             (col.key !== 'user_name' && col.key !== 'employee_id' && col.key !== 'position_name') && (
                               <td key={col.key}>
-                                {col.key === 'start_time' || col.key === 'end_time' ? (
+                                {['start_time', 'end_time', 'break_start', 'break_end'].includes(col.key) ? (
                                   <input type="time" className="form-control form-control-sm shift-input" value={row[col.key] || ''} onChange={e => handleGridChange(rowIndex, col.key, e.target.value)} />
                                 ) : col.key === 'ot_hours' ? (
                                   <input type="text" className="form-control form-control-sm shift-input" 

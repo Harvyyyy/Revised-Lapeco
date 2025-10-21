@@ -5,6 +5,7 @@ const ContributionTypeToggle = ({ activeReport, onSelectReport }) => {
     { key: 'sss', label: 'SSS', icon: 'bi-building-fill-check' },
     { key: 'philhealth', label: 'PhilHealth', icon: 'bi-heart-pulse-fill' },
     { key: 'pagibig', label: 'Pag-IBIG', icon: 'bi-house-heart-fill' },
+    { key: 'tin', label: 'TIN', icon: 'bi-file-earmark-person-fill' },
   ];
 
   return (

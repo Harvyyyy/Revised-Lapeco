@@ -41,7 +41,6 @@ const FinalizedPeriodRow = ({ period, onDownload, onView, onDelete }) => {
         </div>
       </td>
       <td>
-        {/* Replace the old dropdown with the new robust component */}
         <ActionsDropdown>
           <a className="dropdown-item" href="#" onClick={(e) => { e.preventDefault(); onView(); }}><i className="bi bi-eye-fill me-2"></i>View Consolidated</a>
           <div className="dropdown-divider"></div>
@@ -49,6 +48,7 @@ const FinalizedPeriodRow = ({ period, onDownload, onView, onDelete }) => {
           <a className="dropdown-item" href="#" onClick={(e) => handleDownloadClick(e, 'sss')}><i className="bi bi-file-earmark-spreadsheet-fill me-2"></i>SSS Report</a>
           <a className="dropdown-item" href="#" onClick={(e) => handleDownloadClick(e, 'philhealth')}><i className="bi bi-file-earmark-spreadsheet-fill me-2"></i>PhilHealth Report</a>
           <a className="dropdown-item" href="#" onClick={(e) => handleDownloadClick(e, 'pag-ibig')}><i className="bi bi-file-earmark-spreadsheet-fill me-2"></i>Pag-IBIG Report</a>
+          <a className="dropdown-item" href="#" onClick={(e) => handleDownloadClick(e, 'tin')}><i className="bi bi-file-earmark-spreadsheet-fill me-2"></i>TIN Report</a>
           <div className="dropdown-divider"></div>
           <a className="dropdown-item text-danger" href="#" onClick={(e) => handleActionClick(e, onDelete)}><i className="bi bi-trash-fill me-2"></i>Delete Period</a>
         </ActionsDropdown>

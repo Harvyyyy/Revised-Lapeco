@@ -146,6 +146,7 @@ export const leaveAPI = {
 // Payroll API calls
 export const payrollAPI = {
   getAll: () => api.get('/payroll'),
+  compute: (params) => api.get('/payroll/compute', { params }),
   generate: (data) => api.post('/payroll/generate', data),
   update: (id, data) => api.put(`/payroll/${id}`, data),
 };

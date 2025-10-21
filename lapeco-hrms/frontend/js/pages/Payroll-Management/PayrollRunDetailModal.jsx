@@ -6,15 +6,16 @@ const PayrollRunDetailModal = ({ show, onClose, run, onAdjust }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredRecords = useMemo(() => {
+    if (!run || !run.records) return [];
     if (!searchTerm) return run.records;
     const lowerSearch = searchTerm.toLowerCase();
     return run.records.filter(rec => 
         rec.employeeName.toLowerCase().includes(lowerSearch) ||
         rec.empId.toLowerCase().includes(lowerSearch)
     );
-  }, [run.records, searchTerm]);
+  }, [run, searchTerm]);
   
-  if (!show) return null;
+  if (!show || !run) return null;
 
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
@@ -52,10 +53,10 @@ const PayrollRunDetailModal = ({ show, onClose, run, onAdjust }) => {
                 <tbody>
                   {filteredRecords.map(record => {
                     const totalEarnings = (record.earnings || []).reduce((s, i) => s + Number(i.amount), 0);
-                    const totalDeductions = Object.values(record.deductions).reduce((s, v) => s + v, 0) + (record.otherDeductions || []).reduce((s, i) => s + Number(i.amount), 0);
+                    const totalDeductions = Object.values(record.deductions || {}).reduce((s, v) => s + v, 0) + (record.otherDeductions || []).reduce((s, i) => s + Number(i.amount), 0);
                     const netPay = totalEarnings - totalDeductions;
                     return (
-                      <tr key={record.payrollId}>
+                      <tr key={record.payrollId || record.empId}>
                         <td>{record.empId}</td>
                         <td>{record.employeeName}</td>
                         <td className="text-end fw-bold">₱{formatCurrency(netPay)}</td>

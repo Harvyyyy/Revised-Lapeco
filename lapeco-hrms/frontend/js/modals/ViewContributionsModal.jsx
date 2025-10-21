@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { generateSssData, generatePhilhealthData, generatePagibigData } from '../hooks/contributionUtils';
+import { generateSssData, generatePhilhealthData, generatePagibigData } from '../../hooks/contributionUtils';
 import ContributionTypeToggle from '../pages/Contributions-Management/ContributionTypeToggle';
 
 const ViewContributionsModal = ({ show, onClose, run, employees, positions }) => {
