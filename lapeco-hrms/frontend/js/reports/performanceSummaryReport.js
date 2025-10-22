@@ -4,10 +4,7 @@ export const generatePerformanceSummaryReport = async (layoutManager, dataSource
   const { doc, margin } = layoutManager;
 
   // --- 1. DATA PREPARATION ---
-  const filteredEvals = (evaluations || []).filter(ev => {
-    const evalDate = new Date(ev.periodEnd);
-    return evalDate >= new Date(startDate) && evalDate <= new Date(endDate);
-  });
+  const filteredEvals = evaluations || [];
 
   if (filteredEvals.length === 0) {
     doc.text("No performance evaluations were found for the selected period.", margin, layoutManager.y);
@@ -43,7 +40,8 @@ export const generatePerformanceSummaryReport = async (layoutManager, dataSource
   };
 
   // --- 3. SUMMARY TEXT ---
-  const summaryText = `During the period from ${startDate} to ${endDate}, a total of ${filteredEvals.length} performance evaluations were completed. The average score across all evaluations was ${avgScore.toFixed(2)}%. Of these, ${brackets['Outstanding (>90%)']} employee(s) were rated as 'Outstanding', while ${brackets['Needs Improvement (<70%)']} were identified as needing improvement.`;
+  const periodText = startDate === 'All Time' ? 'all time' : `the period from ${startDate} to ${endDate}`;
+  const summaryText = `During ${periodText}, a total of ${filteredEvals.length} performance evaluations were completed. The average score across all evaluations was ${avgScore.toFixed(2)}%. Of these, ${brackets['Outstanding (>90%)']} employee(s) were rated as 'Outstanding', while ${brackets['Needs Improvement (<70%)']} were identified as needing improvement.`;
 
   // --- 4. TABLE DATA ---
   const employeeMap = new Map(employees.map(e => [e.id, e]));
@@ -62,7 +60,8 @@ export const generatePerformanceSummaryReport = async (layoutManager, dataSource
   });
 
   // --- 5. PDF ASSEMBLY ---
-  await layoutManager.addChartWithTitle(`Performance Distribution (${startDate} to ${endDate})`, chartConfig);
+  const reportTitle = startDate === 'All Time' ? 'Overall Performance Distribution' : `Performance Distribution (${startDate} to ${endDate})`;
+  await layoutManager.addChartWithTitle(reportTitle, chartConfig);
   layoutManager.addSummaryText(summaryText);
   layoutManager.addSectionTitle("Detailed Evaluation Results");
   layoutManager.addTable([tableHead], tableBody, {

@@ -3,7 +3,7 @@ import { NavLink, Outlet, useOutletContext } from 'react-router-dom';
 import './MyPayrollPage.css';
 
 const MyPayrollLayout = () => {
-  const { theme, employees } = useOutletContext();
+  const context = useOutletContext();
 
   return (
     <div className="container-fluid p-0 page-module-container">
@@ -25,7 +25,7 @@ const MyPayrollLayout = () => {
       </ul>
       
       <div className="payroll-tab-content">
-        <Outlet context={{ employees, theme }} /> 
+        <Outlet context={context} /> 
       </div>
     </div>
   );
