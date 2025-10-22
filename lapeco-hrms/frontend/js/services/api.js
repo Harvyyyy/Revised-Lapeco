@@ -200,8 +200,11 @@ export const recruitmentAPI = {
 export const performanceAPI = {
   getOverview: () => api.get('/performance/overview'),
   getEmployeeHistory: (employeeId) => api.get(`/performance/employees/${employeeId}/history`),
-  createPeriod: (data) => api.post('/performance', data),
-  updatePeriod: (id, data) => api.put(`/performance/${id}`, data),
+  getEvaluationResponses: (evaluationId) => api.get(`/performance/evaluations/${evaluationId}/responses`),
+  getEvaluationResponseDetail: (responseId) => api.get(`/performance/evaluation-responses/${responseId}`),
+  getEvaluationPeriods: () => api.get('/performance'),
+  createPeriod: (data) => api.post('/performance/periods', data),
+  updatePeriod: (id, data) => api.put(`/performance/periods/${id}`, data),
   submitResponse: (evaluationId, data) => api.post(`/performance/evaluations/${evaluationId}/responses`, data),
   updateResponse: (responseId, data) => api.put(`/performance/evaluation-responses/${responseId}`, data),
 };

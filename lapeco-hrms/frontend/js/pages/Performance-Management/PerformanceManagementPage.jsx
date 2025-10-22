@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { startOfDay, endOfDay, isPast, isFuture, parseISO } from 'date-fns';
-import Select from 'react-select';
 import './PerformanceManagement.css';
 
 import AddEditPeriodModal from '../../modals/AddEditPeriodModal';
@@ -12,6 +11,25 @@ import PerformanceReportModal from '../../modals/PerformanceReportModal';
 import ReportPreviewModal from '../../modals/ReportPreviewModal';
 import useReportGenerator from '../../hooks/useReportGenerator';
 import ConfirmationModal from '../../modals/ConfirmationModal';
+import NotificationToast from '../../common/ToastNotification';
+
+const SCORE_FIELD_TO_FACTOR_MAP = {
+  factor_attendance: 'attendance',
+  factor_dedication: 'dedication',
+  factor_job_knowledge: 'performance_job_knowledge',
+  factor_efficiency: 'performance_work_efficiency_professionalism',
+  factor_task_acceptance: 'cooperation_task_acceptance',
+  factor_adaptability: 'cooperation_adaptability',
+  factor_autonomy: 'initiative_autonomy',
+  factor_pressure: 'initiative_under_pressure',
+  factor_communication: 'communication',
+  factor_teamwork: 'teamwork',
+  factor_character: 'character',
+  factor_responsiveness: 'responsiveness',
+  factor_personality: 'personality',
+  factor_appearance: 'appearance',
+  factor_work_habits: 'work_habits',
+};
 import PeriodCard from './PeriodCard';
 import EvaluationTracker from './EvaluationTracker';
 import { performanceAPI } from '../../services/api';
@@ -31,6 +49,12 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
   const [employeeHistoryData, setEmployeeHistoryData] = useState(null);
   const [isHistoryModalLoading, setIsHistoryModalLoading] = useState(false);
   const [loadingEmployeeId, setLoadingEmployeeId] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+  const [selectedPeriodSummary, setSelectedPeriodSummary] = useState(null);
+  const [selectedPeriodResponses, setSelectedPeriodResponses] = useState([]);
+  const [isLoadingPeriodResponses, setIsLoadingPeriodResponses] = useState(false);
+  const [responseDetailsMap, setResponseDetailsMap] = useState({});
+  const [isLoadingResponseDetail, setIsLoadingResponseDetail] = useState(false);
 
   const [viewingEvaluationContext, setViewingEvaluationContext] = useState(null);
   const [showReportConfigModal, setShowReportConfigModal] = useState(false);
@@ -267,16 +291,6 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
     return periods;
   }, [sortedEvaluationPeriods, periodSearchTerm, periodStatusFilter]);
   
-  const dashboardStats = useMemo(() => {
-    const totalEvals = evaluationHistory.length;
-    if (totalEvals === 0) return { totalEvals, avgScore: 0 };
-    const validEntries = evaluationHistory.filter(emp => typeof emp.combinedAverageScore === 'number' && !Number.isNaN(emp.combinedAverageScore));
-    if (!validEntries.length) return { totalEvals, avgScore: 0 };
-    const avgScore = validEntries.reduce((sum, emp) => sum + emp.combinedAverageScore, 0) / validEntries.length;
-    return { totalEvals, avgScore };
-  }, [evaluationHistory]);
-
-  // Optimized stats for overview tab using the new API
   const overviewStats = useMemo(() => {
     if (overviewData.length === 0) return { totalEmployees: 0, avgScore: 0 };
     const employeesWithScores = overviewData.filter(emp => typeof emp.combinedAverageScore === 'number' && !Number.isNaN(emp.combinedAverageScore));
@@ -376,7 +390,18 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
       const payload = response.data || {};
       const apiHistory = payload.history || [];
 
-      const normalizedHistory = apiHistory.reduce((acc, evaluation) => {
+      if (!apiHistory.length) {
+        setToast({
+          show: true,
+          message: 'No evaluation history found for this employee.',
+          type: 'warning',
+        });
+        setEmployeeHistoryData(null);
+        setViewingEvaluationContext(null);
+        return;
+      }
+
+      const normalizedHistory = apiHistory.map(evaluation => {
         const periodStart = evaluation.periodStart;
         const periodEnd = evaluation.periodEnd;
         const periodName = evaluation.periodName;
@@ -384,51 +409,26 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
         const responsesCount = evaluation.responsesCount ?? 0;
         const averageScorePercentage = typeof evaluation.averageScore === 'number' ? evaluation.averageScore * 20 : null;
 
-        const responses = (evaluation.responses || []).map(responseItem => ({
-          id: responseItem.id,
+        return {
+          id: `evaluation-${evaluation.evaluationId}`,
           evaluationId: evaluation.evaluationId,
           employeeId: payload.employee?.id || employeeId,
-          evaluatorId: responseItem.evaluatorId,
-          evaluator: responseItem.evaluator || null,
-          overallScore: typeof responseItem.overallScore === 'number' ? responseItem.overallScore * 20 : null,
-          evaluationDate: responseItem.evaluatedOn ? responseItem.evaluatedOn.split('T')[0] : null,
+          evaluatorId: null,
+          evaluator: null,
+          overallScore: averageScorePercentage,
+          evaluationDate: null,
           periodStart,
           periodEnd,
           periodName,
           periodId,
           responsesCount,
           evaluationAverage: averageScorePercentage,
-          commentSummary: responseItem.commentSummary,
-          commentDevelopment: responseItem.commentDevelopment,
-          factorScores: responseItem.scores || {},
-        }));
-
-        if (responses.length === 0) {
-          acc.push({
-            id: `evaluation-${evaluation.evaluationId}`,
-            evaluationId: evaluation.evaluationId,
-            employeeId: payload.employee?.id || employeeId,
-            evaluatorId: null,
-            evaluator: null,
-            overallScore: averageScorePercentage,
-            evaluationDate: null,
-            periodStart,
-            periodEnd,
-            periodName,
-            periodId,
-            responsesCount,
-            evaluationAverage: averageScorePercentage,
-            commentSummary: null,
-            commentDevelopment: null,
-            factorScores: {},
-            isPlaceholder: true,
-          });
-        } else {
-          acc.push(...responses);
-        }
-
-        return acc;
-      }, []);
+          commentSummary: null,
+          commentDevelopment: null,
+          factorScores: {},
+          isPlaceholder: responsesCount === 0,
+        };
+      });
 
       const periodSummaries = apiHistory.map(evaluation => ({
         periodId: evaluation.periodId,
@@ -456,9 +456,12 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
             overallScore: null,
             responsesCount: periodSummaries[0].responsesCount,
             factorScores: {},
+            isPlaceholder: periodSummaries[0].responsesCount === 0,
           }
         : null);
       setViewingEvaluationContext(defaultEvaluationContext);
+      setSelectedPeriodSummary(periodSummaries[0] || null);
+      setSelectedPeriodResponses([]);
     } catch (error) {
       console.error('Failed to load employee evaluation history', error);
     } finally {
@@ -691,7 +694,7 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
                                     </div>
                                 </div>
                                 </td>
-                                <td>{hasScore ? <ScoreIndicator score={emp.combinedAverageScore} /> : <span className="text-muted">N/A</span>}</td>
+                                <td>{hasScore ? <ScoreIndicator score={emp.combinedAverageScore} /> : <span className="text-muted">No evaluation found for this employee.</span>}</td>
                                 <td><button className="btn btn-sm btn-outline-secondary" onClick={() => handleViewEvaluation(emp)}>View</button></td>
                             </tr>
                             )
@@ -776,12 +779,24 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
         <p className="text-danger">This action cannot be undone and may disassociate historical evaluations from this period.</p>
       </ConfirmationModal>
 
+      {toast.show && (
+        <NotificationToast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ show: false, message: '', type: 'info' })}
+        />
+      )}
+
       {(viewingEvaluationContext || employeeHistoryData) && (
         <ViewEvaluationModal
           show={!!(viewingEvaluationContext || employeeHistoryData)}
           onClose={() => {
             setViewingEvaluationContext(null);
             setEmployeeHistoryData(null);
+            setSelectedPeriodSummary(null);
+            setSelectedPeriodResponses([]);
+            setResponseDetailsMap({});
+            setIsLoadingResponseDetail(false);
           }}
           evaluationContext={viewingEvaluationContext}
           employeeHistoryContext={employeeHistoryData}
@@ -789,6 +804,161 @@ const PerformanceManagementPage = ({ positions = [], employees = [], evaluations
           positions={positions}
           evaluations={evaluations}
           evaluationFactors={evaluationFactors}
+          periodSummary={selectedPeriodSummary}
+          periodResponses={selectedPeriodResponses}
+          onSelectPeriod={async (period) => {
+            if (!period) return;
+            setSelectedPeriodSummary(period);
+            setResponseDetailsMap({});
+            setIsLoadingPeriodResponses(true);
+            try {
+              const evaluationId = period.evaluationId || period.id || period.periodId;
+              const response = await performanceAPI.getEvaluationResponses(evaluationId);
+              const payload = response.data || {};
+              const responses = (payload.responses || []).map(item => {
+                const normalizedEvaluator = item.evaluator
+                  ? {
+                      id: item.evaluator.id,
+                      name: item.evaluator.name,
+                      email: item.evaluator.email,
+                      role: item.evaluator.role,
+                      position: item.evaluator.position,
+                      positionId: item.evaluator.positionId ?? null,
+                      imageUrl: item.evaluator.profilePictureUrl,
+                    }
+                  : null;
+
+                return {
+                id: item.id,
+                evaluationId: item.evaluationId,
+                employeeId: payload.employee?.id || viewingEvaluationContext?.employeeId || period.employeeId,
+                evaluatorId: item.evaluatorId,
+                evaluator: normalizedEvaluator,
+                overallScore: typeof item.overallScore === 'number' ? item.overallScore * 20 : null,
+                evaluationDate: item.evaluatedOn ? item.evaluatedOn.split('T')[0] : null,
+                periodStart: payload.evaluation?.periodStart || period.periodStart,
+                periodEnd: payload.evaluation?.periodEnd || period.periodEnd,
+                periodName: payload.evaluation?.periodName || period.periodName,
+                periodId: payload.evaluation?.periodId || period.periodId,
+                responsesCount: payload.responses?.length || period.responsesCount || 0,
+                evaluationAverage: payload.evaluation?.averageScore
+                  ? payload.evaluation.averageScore * 20
+                  : typeof period.evaluationAverage === 'number' ? period.evaluationAverage : null,
+                commentSummary: item.commentSummary,
+                commentDevelopment: item.commentDevelopment,
+                factorScores: {},
+                };
+              });
+
+              if (responses.length === 0) {
+                setSelectedPeriodResponses([{
+                  id: `evaluation-${payload.evaluation?.id || evaluationId}`,
+                  evaluationId: payload.evaluation?.id || evaluationId,
+                  employeeId: payload.employee?.id || viewingEvaluationContext?.employeeId || period.employeeId,
+                  evaluatorId: null,
+                  evaluator: null,
+                  overallScore: payload.evaluation?.averageScore ? payload.evaluation.averageScore * 20 : null,
+                  evaluationDate: null,
+                  periodStart: payload.evaluation?.periodStart || period.periodStart,
+                  periodEnd: payload.evaluation?.periodEnd || period.periodEnd,
+                  periodName: payload.evaluation?.periodName || period.periodName,
+                  periodId: payload.evaluation?.periodId || period.periodId,
+                  responsesCount: payload.responses?.length || period.responsesCount || 0,
+                  evaluationAverage: payload.evaluation?.averageScore
+                    ? payload.evaluation.averageScore * 20
+                    : typeof period.evaluationAverage === 'number' ? period.evaluationAverage : null,
+                  commentSummary: null,
+                  commentDevelopment: null,
+                  factorScores: {},
+                  isPlaceholder: true,
+                }]);
+              } else {
+                setSelectedPeriodResponses(responses);
+              }
+
+              if (responses.length > 0) {
+                setViewingEvaluationContext(responses[0]);
+              } else {
+                setViewingEvaluationContext({
+                  evaluationId: payload.evaluation?.id || evaluationId,
+                  employeeId: payload.employee?.id || viewingEvaluationContext?.employeeId || period.employeeId,
+                  periodStart: payload.evaluation?.periodStart || period.periodStart,
+                  periodEnd: payload.evaluation?.periodEnd || period.periodEnd,
+                  periodName: payload.evaluation?.periodName || period.periodName,
+                  overallScore: payload.evaluation?.averageScore ? payload.evaluation.averageScore * 20 : null,
+                  responsesCount: payload.responses?.length || period.responsesCount || 0,
+                  factorScores: {},
+                  isPlaceholder: true,
+                });
+              }
+            } catch (err) {
+              console.error('Failed to load evaluation responses', err);
+              setToast({
+                show: true,
+                message: 'Unable to fetch evaluation details for this period. Please try again.',
+                type: 'error',
+              });
+            } finally {
+              setIsLoadingPeriodResponses(false);
+            }
+          }}
+          isLoadingPeriodResponses={isLoadingPeriodResponses}
+          onLoadEvaluationDetail={async (responseId) => {
+            if (!responseId) return null;
+            if (responseDetailsMap[responseId]) {
+              return responseDetailsMap[responseId];
+            }
+
+            setIsLoadingResponseDetail(true);
+            try {
+              const response = await performanceAPI.getEvaluationResponseDetail(responseId);
+              const payload = response.data || {};
+              const detail = payload.response || null;
+
+              if (!detail) return null;
+
+              const { scores = {}, ...detailRest } = detail;
+
+              const factorScores = Object.entries(SCORE_FIELD_TO_FACTOR_MAP).reduce((acc, [factorId, scoreField]) => {
+                if (typeof scores[scoreField] === 'number') {
+                  acc[factorId] = { score: scores[scoreField] };
+                }
+                return acc;
+              }, {});
+
+              const normalized = {
+                ...detailRest,
+                factorScores,
+                overallScore: typeof detail.overallScore === 'number' ? detail.overallScore * 20 : null,
+                commentSummary: detail.commentSummary,
+                commentDevelopment: detail.commentDevelopment,
+                evaluator: payload.evaluator ? {
+                  id: payload.evaluator.id,
+                  name: payload.evaluator.name,
+                  position: payload.evaluator.position,
+                  positionId: payload.evaluator.positionId,
+                  imageUrl: payload.evaluator.profilePictureUrl,
+                } : null,
+                periodStart: payload.evaluation?.periodStart,
+                periodEnd: payload.evaluation?.periodEnd,
+                periodName: payload.evaluation?.periodName,
+              };
+
+              setResponseDetailsMap(prev => ({ ...prev, [responseId]: normalized }));
+              return normalized;
+            } catch (error) {
+              console.error('Failed to load evaluation response detail', error);
+              setToast({
+                show: true,
+                message: 'Unable to load evaluator response details.',
+                type: 'error',
+              });
+              return null;
+            } finally {
+              setIsLoadingResponseDetail(false);
+            }
+          }}
+          isLoadingResponseDetail={isLoadingResponseDetail}
         />
       )}
 

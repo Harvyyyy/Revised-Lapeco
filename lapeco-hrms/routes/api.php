@@ -204,6 +204,8 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::middleware(['role.access:employee,index'])->get('/performance', [PerformanceController::class, 'index']);
     Route::middleware(['role.access:employee,index'])->get('/performance/overview', [PerformanceController::class, 'overview']);
     Route::middleware(['role.access:employee,index'])->get('/performance/employees/{employee}/history', [PerformanceController::class, 'employeeHistory']);
+    Route::middleware(['role.access:employee,index'])->get('/performance/evaluations/{evaluation}/responses', [PerformanceController::class, 'employeeEvaluationResponses']);
+    Route::middleware(['role.access:employee,index'])->get('/performance/evaluation-responses/{response}', [PerformanceController::class, 'evaluationResponseDetail']);
     Route::middleware(['role.access:employee,store'])->post('/performance/periods', [PerformanceController::class, 'storePeriod']);
     Route::middleware(['role.access:employee,update'])->put('/performance/periods/{period}', [PerformanceController::class, 'updatePeriod']);
     Route::middleware(['role.access:employee,store'])->post('/performance/evaluations', [PerformanceController::class, 'storeEvaluation']);

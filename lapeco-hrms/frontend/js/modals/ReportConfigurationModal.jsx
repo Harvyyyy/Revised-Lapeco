@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Select from 'react-select';
 
-const ReportConfigurationModal = ({ show, onClose, onRunReport, reportConfig, trainingPrograms, payrolls }) => {
+const ReportConfigurationModal = ({ show, onClose, onRunReport, reportConfig, trainingPrograms, payrolls, evaluationPeriods = [] }) => {
   const [params, setParams] = useState({});
   const [dateRangeMode, setDateRangeMode] = useState('dateRange');
   const [error, setError] = useState('');
@@ -17,28 +17,24 @@ const ReportConfigurationModal = ({ show, onClose, onRunReport, reportConfig, tr
     return Array.from(years).sort((a, b) => b - a);
   }, [payrolls]);
 
+  const performancePeriodOptions = useMemo(() => [
+    { value: 'all', label: 'All Time' },
+    ...evaluationPeriods.map(p => ({ value: p.id, label: p.name }))
+  ], [evaluationPeriods]);
+
   useEffect(() => {
     if (show && reportConfig) {
       const today = new Date().toISOString().split('T')[0];
       const initialParams = (reportConfig.parameters || []).reduce((acc, param) => {
         if (param.type === 'date-range') {
           acc.startDate = today;
-          if (param.labels.end) {
-            acc.endDate = today;
-          }
+          if (param.labels.end) acc.endDate = today;
         }
-        if (param.type === 'as-of-date') {
-          acc.asOfDate = today;
-        }
-        if (param.type === 'program-selector') {
-          acc.programId = null;
-        }
-        if (param.type === 'payroll-run-selector') {
-          acc.runId = null;
-        }
-        if (param.type === 'year-selector') {
-          acc.year = new Date().getFullYear();
-        }
+        if (param.type === 'as-of-date') acc.asOfDate = today;
+        if (param.type === 'program-selector') acc.programId = null;
+        if (param.type === 'payroll-run-selector') acc.runId = null;
+        if (param.type === 'year-selector') acc.year = new Date().getFullYear();
+        if (param.type === 'performance-period-selector') acc.periodId = 'all';
         return acc;
       }, {});
       setParams(initialParams);
@@ -88,6 +84,12 @@ const ReportConfigurationModal = ({ show, onClose, onRunReport, reportConfig, tr
       }
     }
     
+    const perfPeriodParam = reportConfig.parameters.find(p => p.type === 'performance-period-selector');
+    if (perfPeriodParam && !params.periodId) {
+        setError('An evaluation period must be selected.');
+        return;
+    }
+    
     const yearParam = reportConfig.parameters.find(p => p.type === 'year-selector');
     if (yearParam && !params.year) {
         setError('A year must be selected.');
@@ -112,6 +114,22 @@ const ReportConfigurationModal = ({ show, onClose, onRunReport, reportConfig, tr
   const renderParameterInputs = () => (
     (reportConfig.parameters || []).map(param => {
       switch (param.type) {
+        case 'performance-period-selector':
+          return (
+            <div key={param.id} className="mb-3">
+              <label htmlFor="periodId" className="form-label">{param.label}</label>
+              <Select
+                id="periodId"
+                options={performancePeriodOptions}
+                value={performancePeriodOptions.find(opt => opt.value === params.periodId)}
+                onChange={(option) => handleParamChange('periodId', option ? option.value : null)}
+                className="react-select-container"
+                classNamePrefix="react-select"
+                required
+              />
+            </div>
+          );
+        
         case 'date-range':
           return (
             <div key={param.id} className="mb-3">

@@ -123,6 +123,13 @@
     align-items: center;
     gap: 1rem;
 }
+.evaluator-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: #f1f3f5;
+}
 .evaluator-name {
     font-weight: 600;
     font-size: 1.05rem;

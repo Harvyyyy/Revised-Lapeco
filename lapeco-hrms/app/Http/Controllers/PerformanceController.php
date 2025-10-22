@@ -76,6 +76,144 @@ class PerformanceController extends Controller
     }
 
     /**
+     * Get detailed responses for a specific evaluation record of an employee.
+     */
+    public function employeeEvaluationResponses(Request $request, PerformanceEvaluation $evaluation)
+    {
+        $employee = $evaluation->employee()->firstOrFail();
+
+        $evaluation->loadMissing([
+            'period:id,name,evaluation_start,evaluation_end,status,open_date,close_date',
+            'responses' => function ($query) {
+                $query->with([
+                    'evaluator:id,first_name,middle_name,last_name,email,role,position_id,image_url',
+                    'evaluator.position:id,name'
+                ])->orderBy('evaluated_on');
+            },
+        ]);
+
+        $period = $evaluation->period;
+
+        $responses = $evaluation->responses->map(function (PerformanceEvaluatorResponse $response) {
+            $evaluatorUser = $response->evaluator;
+            $evaluatorData = null;
+
+            if ($evaluatorUser) {
+                $positionName = $evaluatorUser->position?->name ?? 'Unassigned';
+                $evaluatorData = [
+                    'id' => $evaluatorUser->id,
+                    'name' => trim(collect([$evaluatorUser->first_name, $evaluatorUser->middle_name, $evaluatorUser->last_name])->filter()->implode(' ')),
+                    'email' => $evaluatorUser->email,
+                    'role' => $evaluatorUser->role,
+                    'position' => $positionName,
+                    'profilePictureUrl' => $evaluatorUser->image_url ? asset('storage/' . $evaluatorUser->image_url) : null,
+                ];
+            }
+
+            return [
+                'id' => $response->id,
+                'evaluationId' => $response->evaluation_id,
+                'evaluatorId' => $response->evaluator_id,
+                'evaluator' => $evaluatorData,
+                'evaluatedOn' => $response->evaluated_on?->toIso8601String(),
+                'overallScore' => $response->overall_score ? (float) $response->overall_score : null,
+                'commentSummary' => $response->evaluators_comment_summary,
+                'commentDevelopment' => $response->evaluators_comment_development,
+                'createdAt' => $response->created_at?->toIso8601String(),
+                'updatedAt' => $response->updated_at?->toIso8601String(),
+            ];
+        })->values();
+
+        return response()->json([
+            'evaluation' => [
+                'id' => $evaluation->id,
+                'employeeId' => $evaluation->employee_id,
+                'periodId' => $evaluation->period_id,
+                'periodName' => $period?->name,
+                'periodStart' => $period?->evaluation_start?->toDateString(),
+                'periodEnd' => $period?->evaluation_end?->toDateString(),
+                'status' => $period?->status,
+                'averageScore' => $evaluation->average_score ? (float) $evaluation->average_score : null,
+            ],
+            'responses' => $responses,
+            'employee' => [
+                'id' => $employee->id,
+                'name' => trim(collect([$employee->first_name, $employee->middle_name, $employee->last_name])->filter()->implode(' ')),
+                'position' => $employee->position?->name ?? 'Unassigned',
+                'profilePictureUrl' => $employee->image_url ? asset('storage/' . $employee->image_url) : null,
+            ],
+        ]);
+    }
+
+    /**
+     * Get a single evaluator response with full scoring details.
+     */
+    public function evaluationResponseDetail(Request $request, PerformanceEvaluatorResponse $response)
+    {
+        $response->loadMissing([
+            'evaluation:id,employee_id,period_id,average_score',
+            'evaluation.period:id,name,evaluation_start,evaluation_end,status,open_date,close_date',
+            'evaluation.employee:id,first_name,middle_name,last_name,email,position_id,image_url',
+            'evaluator:id,first_name,middle_name,last_name,email,role,position_id,image_url',
+            'evaluator.position:id,name',
+        ]);
+
+        $evaluation = $response->evaluation;
+        $period = $evaluation?->period;
+        $employee = $evaluation?->employee;
+        $evaluatorUser = $response->evaluator;
+
+        $evaluatorData = null;
+
+        if ($evaluatorUser) {
+            $evaluatorData = [
+                'id' => $evaluatorUser->id,
+                'name' => trim(collect([$evaluatorUser->first_name, $evaluatorUser->middle_name, $evaluatorUser->last_name])->filter()->implode(' ')),
+                'email' => $evaluatorUser->email,
+                'role' => $evaluatorUser->role,
+                'position' => $evaluatorUser->position?->name ?? 'Unassigned',
+                'positionId' => $evaluatorUser->position_id,
+                'profilePictureUrl' => $evaluatorUser->image_url ? asset('storage/' . $evaluatorUser->image_url) : null,
+            ];
+        }
+
+        $scores = collect(PerformanceEvaluatorResponse::SCORE_FIELDS)
+            ->mapWithKeys(fn ($field) => [$field => (int) $response->{$field}])
+            ->all();
+
+        return response()->json([
+            'response' => [
+                'id' => $response->id,
+                'evaluationId' => $response->evaluation_id,
+                'evaluatorId' => $response->evaluator_id,
+                'scores' => $scores,
+                'overallScore' => $response->overall_score ? (float) $response->overall_score : null,
+                'commentSummary' => $response->evaluators_comment_summary,
+                'commentDevelopment' => $response->evaluators_comment_development,
+                'evaluatedOn' => $response->evaluated_on?->toIso8601String(),
+                'createdAt' => $response->created_at?->toIso8601String(),
+                'updatedAt' => $response->updated_at?->toIso8601String(),
+            ],
+            'evaluation' => [
+                'id' => $evaluation?->id,
+                'employeeId' => $evaluation?->employee_id,
+                'periodId' => $evaluation?->period_id,
+                'periodName' => $period?->name,
+                'periodStart' => $period?->evaluation_start?->toDateString(),
+                'periodEnd' => $period?->evaluation_end?->toDateString(),
+                'averageScore' => $evaluation?->average_score ? (float) $evaluation->average_score : null,
+            ],
+            'employee' => $employee ? [
+                'id' => $employee->id,
+                'name' => trim(collect([$employee->first_name, $employee->middle_name, $employee->last_name])->filter()->implode(' ')),
+                'position' => $employee->position?->name ?? 'Unassigned',
+                'profilePictureUrl' => $employee->image_url ? asset('storage/' . $employee->image_url) : null,
+            ] : null,
+            'evaluator' => $evaluatorData,
+        ]);
+    }
+
+    /**
      * Get optimized performance overview data for active employees
      * Returns only employee name, position, and combined average score
      */
@@ -127,17 +265,18 @@ class PerformanceController extends Controller
         $evaluations = PerformanceEvaluation::query()
             ->with([
                 'period:id,name,evaluation_start,evaluation_end,status,open_date,close_date',
-                'responses' => function ($query) {
-                    $query->with([
-                        'evaluator:id,first_name,middle_name,last_name,email,role,position_id',
-                    ])->orderBy('evaluated_on');
-                },
             ])
             ->where('employee_id', $employee->id)
             ->orderByDesc('id')
             ->get();
 
-        $history = $evaluations->map(function (PerformanceEvaluation $evaluation) {
+        $responseCountsByEvaluation = PerformanceEvaluatorResponse::query()
+            ->select('evaluation_id', DB::raw('COUNT(*) as responses_count'))
+            ->whereIn('evaluation_id', $evaluations->pluck('id'))
+            ->groupBy('evaluation_id')
+            ->pluck('responses_count', 'evaluation_id');
+
+        $history = $evaluations->map(function (PerformanceEvaluation $evaluation) use ($responseCountsByEvaluation) {
             $period = $evaluation->period;
 
             return [
@@ -150,24 +289,8 @@ class PerformanceController extends Controller
                 'closeDate' => $period?->close_date?->toDateString(),
                 'status' => $period?->status,
                 'averageScore' => $evaluation->average_score ? (float) $evaluation->average_score : null,
-                'responsesCount' => $evaluation->responses_count ?? $evaluation->responses->count(),
-                'responses' => $evaluation->responses->map(function (PerformanceEvaluatorResponse $response) {
-                    return [
-                        'id' => $response->id,
-                        'evaluationId' => $response->evaluation_id,
-                        'evaluatorId' => $response->evaluator_id,
-                        'evaluator' => $response->evaluator?->only(['id', 'first_name', 'middle_name', 'last_name', 'email', 'role', 'position_id']),
-                        'evaluatedOn' => $response->evaluated_on?->toIso8601String(),
-                        'scores' => collect(PerformanceEvaluatorResponse::SCORE_FIELDS)
-                            ->mapWithKeys(fn ($field) => [$field => (int) $response->{$field}])
-                            ->all(),
-                        'overallScore' => $response->overall_score ? (float) $response->overall_score : null,
-                        'commentSummary' => $response->evaluators_comment_summary,
-                        'commentDevelopment' => $response->evaluators_comment_development,
-                        'createdAt' => $response->created_at?->toIso8601String(),
-                        'updatedAt' => $response->updated_at?->toIso8601String(),
-                    ];
-                })->values(),
+                'responsesCount' => $evaluation->responses_count
+                    ?? $responseCountsByEvaluation->get($evaluation->id, 0),
             ];
         })->values();
 

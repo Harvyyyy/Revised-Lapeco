@@ -3,43 +3,61 @@ import './MyPayrollPage.css';
 
 const formatCurrency = (value) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const getCurrentPayPeriod = () => {
-    const today = new Date();
-    const dayOfMonth = today.getDate();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    
-    if (dayOfMonth <= 15) {
-        return {
-            start: new Date(year, month, 1).toISOString().split('T')[0],
-            end: new Date(year, month, 15).toISOString().split('T')[0],
-        };
-    } else {
-        return {
-            start: new Date(year, month, 16).toISOString().split('T')[0],
-            end: new Date(year, month + 1, 0).toISOString().split('T')[0],
-        };
-    }
+const getYears = () => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear, currentYear - 1];
 };
 
+const MONTHS = [
+    { value: 0, label: 'January' }, { value: 1, label: 'February' }, { value: 2, label: 'March' },
+    { value: 3, label: 'April' }, { value: 4, label: 'May' }, { value: 5, label: 'June' },
+    { value: 6, label: 'July' }, { value: 7, label: 'August' }, { value: 8, label: 'September' },
+    { value: 9, label: 'October' }, { value: 10, label: 'November' }, { value: 11, label: 'December' },
+];
+
+const PERIODS = [
+    { value: '1', label: '1st Half (26th - 10th)' },
+    { value: '2', label: '2nd Half (11th - 25th)' },
+];
+
+
 const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], attendanceLogs = [], holidays = [] }) => {
-  const [startDate, setStartDate] = useState(getCurrentPayPeriod().start);
-  const [endDate, setEndDate] = useState(getCurrentPayPeriod().end);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    const day = new Date().getDate();
+    return day >= 11 && day <= 25 ? '2' : '1';
+  });
 
   const positionMap = useMemo(() => new Map(positions.map(p => [p.id, p])), [positions]);
   const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h])), [holidays]);
   const scheduleMap = useMemo(() => new Map(schedules.map(s => [`${s.empId}-${s.date}`, s])), [schedules]);
   const attendanceMap = useMemo(() => new Map(attendanceLogs.map(a => [`${a.empId}-${a.date}`, a])), [attendanceLogs]);
   
-  const projectionData = useMemo(() => {
-    if (!startDate || !endDate || new Date(endDate) < new Date(startDate)) {
-      return null;
+  const { startDate, endDate, cutOffString } = useMemo(() => {
+    const year = selectedYear;
+    const month = selectedMonth;
+
+    if (selectedPeriod === '1') { // 1st Half: 26th of prev month to 10th of current month
+        const prevMonth = month === 0 ? 11 : month - 1;
+        const prevMonthYear = month === 0 ? year - 1 : year;
+        const start = new Date(Date.UTC(prevMonthYear, prevMonth, 26)).toISOString().split('T')[0];
+        const end = new Date(Date.UTC(year, month, 10)).toISOString().split('T')[0];
+        return { startDate: start, endDate: end, cutOffString: `${start} to ${end}` };
+    } else { // 2nd Half: 11th to 25th of current month
+        const start = new Date(Date.UTC(year, month, 11)).toISOString().split('T')[0];
+        const end = new Date(Date.UTC(year, month, 25)).toISOString().split('T')[0];
+        return { startDate: start, endDate: end, cutOffString: `${start} to ${end}` };
     }
+  }, [selectedYear, selectedMonth, selectedPeriod]);
+
+  const projectionData = useMemo(() => {
+    if (!startDate || !endDate) return null;
     
     const position = positionMap.get(currentUser.positionId);
     if (!position) return null;
 
-    const dailyRate = position.monthlySalary / 22;
+    const dailyRate = position.monthlySalary / 22; // Assumption: 22 work days
     let totalGross = 0;
     const breakdown = [];
     const today = new Date();
@@ -50,10 +68,10 @@ const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], 
         
         const dateStr = d.toISOString().split('T')[0];
         const dayOfWeek = new Date(dateStr + 'T00:00:00').getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-
+        // Skip weekends for calculation unless explicitly scheduled
         const schedule = scheduleMap.get(`${currentUser.id}-${dateStr}`);
-        if (!schedule) continue;
+        if (!schedule && (dayOfWeek === 0 || dayOfWeek === 6)) continue;
+        if (!schedule) continue; // Skip if not scheduled on a weekday either
 
         const attendance = attendanceMap.get(`${currentUser.id}-${dateStr}`);
         const holiday = holidayMap.get(dateStr);
@@ -76,27 +94,41 @@ const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], 
     return {
         totalGross, 
         breakdown,
-        cutOff: `${new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', {month: 'short', day: 'numeric'})} - ${new Date(endDate + 'T00:00:00').toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}`
+        cutOff: cutOffString
     };
   }, [startDate, endDate, currentUser, positionMap, scheduleMap, attendanceMap, holidayMap]);
-  
-  const hasValidDateRange = startDate && endDate && new Date(endDate) >= new Date(startDate);
 
   return (
     <div className="payroll-projection-container">
-      <div className="card shadow-sm mb-4">
+      <div className="card shadow-sm mt-4">
         <div className="card-body p-4">
           <h5 className="card-title section-title">Select Projection Period</h5>
-          <p className="text-secondary">Select a date range to see your estimated gross income based on your attendance records.</p>
-          <div className="row g-3">
-            <div className="col-md-5"><label htmlFor="startDate" className="form-label fw-bold">Start Date</label><input type="date" id="startDate" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
-            <div className="col-md-5"><label htmlFor="endDate" className="form-label fw-bold">End Date</label><input type="date" id="endDate" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+          <p className="text-secondary">Select a pay period to see your estimated gross income based on your attendance.</p>
+          <div className="row g-3 align-items-end">
+            <div className="col-md-3">
+              <label htmlFor="year" className="form-label fw-bold">Year</label>
+              <select id="year" className="form-select" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}>
+                {getYears().map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label htmlFor="month" className="form-label fw-bold">Month</label>
+              <select id="month" className="form-select" value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}>
+                {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="col-md-5">
+              <label htmlFor="period" className="form-label fw-bold">Period</label>
+              <select id="period" className="form-select" value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)}>
+                {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
           </div>
         </div>
       </div>
       
-      {hasValidDateRange && projectionData && (
-        <div className="card shadow-sm">
+      {projectionData && (
+        <div className="card shadow-sm mt-4">
             <div className="card-body p-4">
                 <div className="projection-summary-card">
                     <div className="summary-label">Projected Gross Income</div>
