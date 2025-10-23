@@ -143,7 +143,7 @@ function App() {
             <Route path="dashboard/my-attendance" element={<MyAttendancePage />} />
             <Route path="dashboard/my-cases" element={<MyCasesPage />} />
             <Route path="dashboard/submit-report" element={<IncedentReport />} />
-            <Route path="my-payroll/*" element={<MyPayrollLayout />}>
+            <Route path="dashboard/my-payroll/*" element={<MyPayrollLayout />}>
               <Route index element={<Navigate to="projection" replace />} />
               <Route path="projection" element={<MyPayrollProjectionPage/>} />
               <Route path="history" element={<MyPayrollHistoryPage/>} />
