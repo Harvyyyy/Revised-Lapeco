@@ -5,6 +5,7 @@ import './AttendancePage.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import ReportPreviewModal from '../../modals/ReportPreviewModal';
 import EditAttendanceModal from '../../modals/EditAttendanceModal';
+import ImportPreviewModal from '../../modals/ImportPreviewModal';
 import useReportGenerator from '../../hooks/useReportGenerator';
 import attendanceAPI from '../../services/attendanceAPI';
 import { scheduleAPI } from '../../services/api';
@@ -34,11 +35,10 @@ const AttendancePage = () => {
   const [deletingDate, setDeletingDate] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // CSV Import state
+  // Excel Import state (NEW)
   const [showImportPreview, setShowImportPreview] = useState(false);
-  const [importData, setImportData] = useState([]);
-  const [validatedImportData, setValidatedImportData] = useState([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [allEmployees, setAllEmployees] = useState([]);
 
   // Toast notification state
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -53,7 +53,21 @@ const AttendancePage = () => {
   
   const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator();
   const fileInputRef = useRef(null);
-  const csvFileInputRef = useRef(null);
+  const excelImportRef = useRef(null);
+
+  // Fetch all employees for import matching (NEW)
+  useEffect(() => {
+    const fetchAllEmployees = async () => {
+      try {
+        const response = await attendanceAPI.getEmployeeNameID();
+        setAllEmployees(response.data?.data || []);
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+      }
+    };
+    
+    fetchAllEmployees();
+  }, []);
 
   // Fetch data based on active view
   useEffect(() => {
@@ -63,17 +77,13 @@ const AttendancePage = () => {
         setError(null);
         
         if (activeView === 'daily' || activeView === 'historyDetail') {
-          // Only fetch daily attendance data for the current date
           const dailyResponse = await attendanceAPI.getDaily({ date: currentDate });
           setDailyAttendanceData(dailyResponse.data || []);
         } else if (activeView === 'historyList') {
-          // Only fetch attendance history summary
           const historyResponse = await attendanceAPI.getHistory();
           setAttendanceHistory(historyResponse.data || []);
         } else if (activeView === 'employee') {
-          // Only fetch employees list for employee selection
           const employeesResponse = await attendanceAPI.getEmployeeNameID();
-          // Handle the new response structure: { success: true, data: [...] }
           setEmployeesList(employeesResponse.data?.data || []);
         }
         
@@ -91,9 +101,7 @@ const AttendancePage = () => {
   // Fetch specific employee attendance records
   const fetchEmployeeAttendanceLogs = async (employeeId) => {
     try {
-      // Use the new API endpoint to get only this employee's attendance
       const employeeAttendanceResponse = await attendanceAPI.getEmployeeAttendance(employeeId);
-      // Handle the new response structure: { success: true, data: [...] }
       setAttendanceLogs(employeeAttendanceResponse.data?.data || []);
     } catch (error) {
       console.error('Error fetching employee attendance logs:', error);
@@ -104,13 +112,10 @@ const AttendancePage = () => {
   const dailyAttendanceList = useMemo(() => {
     if (!dailyAttendanceData) return [];
 
-    // Use daily attendance data directly from the new API
     return dailyAttendanceData.map((record, index) => {
-      // Extract time from shift datetime strings and format to HH:MM
       let shiftDisplay = record.shift;
-
-      // Working hours calculation (rounded down to whole hours)
       let workingHours = 0;
+      
       if (record.signIn && record.signOut) {
         try {
           const signInTime = new Date(`1970-01-01T${record.signIn}:00`);
@@ -169,7 +174,6 @@ const AttendancePage = () => {
   const sortedAndFilteredList = useMemo(() => {
     let list = [...dailyAttendanceList];
     
-    // Apply filters
     if (positionFilter) {
       list = list.filter(emp => emp.position === positionFilter);
     }
@@ -177,7 +181,6 @@ const AttendancePage = () => {
       list = list.filter(emp => emp.status === statusFilter);
     }
     
-    // Apply sorting
     list.sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
@@ -191,11 +194,10 @@ const AttendancePage = () => {
   }, [dailyAttendanceList, positionFilter, statusFilter, sortConfig]);
 
   const attendanceHistoryDisplay = useMemo(() => {
-    // Use the attendance history data directly from the new API
     if (!attendanceHistory) return [];
     
     return attendanceHistory.map(day => ({
-      date: day.date.split('T')[0], // Extract date part from ISO string
+      date: day.date.split('T')[0],
       present: day.present,
       late: day.late,
       absent: day.absent,
@@ -203,7 +205,6 @@ const AttendancePage = () => {
     })).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [attendanceHistory]);
 
-  // Get employees list for employee selection
   const availableEmployees = useMemo(() => {
     return Array.isArray(employeesList) ? employeesList : [];
   }, [employeesList]);
@@ -224,7 +225,6 @@ const AttendancePage = () => {
       
       let filteredRecords = attendanceLogs.filter(log => log.empId === selectedEmployee.id);
       
-      // Apply date filter if provided
       if (employeeDateFilter.start || employeeDateFilter.end) {
         filteredRecords = filteredRecords.filter(record => {
           const recordDate = new Date(record.date);
@@ -249,19 +249,15 @@ const AttendancePage = () => {
         });
       }
       
-      // Apply status filter if provided
       if (employeeStatusFilter) {
         filteredRecords = filteredRecords.filter(record => record.status === employeeStatusFilter);
       }
       
-      // Sort by date descending
       const sortedRecords = filteredRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
       
-      // Calculate stats from all records (before status filter for accurate percentages)
       const allRecords = attendanceLogs.filter(log => log.empId === selectedEmployee.id);
       let statsRecords = allRecords;
       
-      // Apply date filter to stats records if provided
       if (employeeDateFilter.start || employeeDateFilter.end) {
         statsRecords = allRecords.filter(record => {
           const recordDate = new Date(record.date);
@@ -346,7 +342,6 @@ const AttendancePage = () => {
     
     setIsDeleting(true);
     try {
-      // First, fetch all attendance records for the specific date to get the schedule ID
       const dailyResponse = await attendanceAPI.getDaily({ date: deletingDate });
       const records = dailyResponse.data || [];
       
@@ -361,7 +356,6 @@ const AttendancePage = () => {
         return;
       }
       
-      // Get the schedule ID from the first record (all records for a date should have the same schedule ID)
       const scheduleId = records[0]?.scheduleId;
       
       if (!scheduleId) {
@@ -375,10 +369,8 @@ const AttendancePage = () => {
         return;
       }
       
-      // Delete the entire schedule (this will cascade delete all related attendance records)
       await scheduleAPI.delete(scheduleId);
       
-      // Refresh the history data
       const historyResponse = await attendanceAPI.getHistory();
       setAttendanceHistory(historyResponse.data || []);
       
@@ -410,21 +402,17 @@ const AttendancePage = () => {
 
   const handleEmployeeSelect = async (employee) => {
     setSelectedEmployee(employee);
-    // Fetch attendance logs for the selected employee
     await fetchEmployeeAttendanceLogs(employee.id);
   };
 
   const handleEmployeeDeselect = () => {
     setSelectedEmployee(null);
-    // Clear attendance logs when going back to employee list
     setAttendanceLogs([]);
   };
 
-  // Clear data when switching views
   const handleViewChange = (newView) => {
     setActiveView(newView);
     
-    // Clear data from other views to free memory
     if (newView !== 'daily' && newView !== 'historyDetail') {
       setDailyAttendanceData([]);
     }
@@ -438,7 +426,6 @@ const AttendancePage = () => {
       setEmployeeStatusFilter('');
     }
     
-    // Reset date to today when switching to daily view
     if (newView === 'daily') {
       setCurrentDate(new Date().toISOString().split('T')[0]);
     }
@@ -498,10 +485,7 @@ const AttendancePage = () => {
   const handleSaveEditedTime = async (attendanceId, date, updatedTimes) => {
     if (!editingAttendanceRecord) return;
     
-    console.log('handleSaveEditedTime called with:', { attendanceId, date, updatedTimes });
-    
     try {
-      // Find the existing record from dailyAttendanceData
       const existingRecord = dailyAttendanceData.find(record => 
         record.empId === editingAttendanceRecord.empId && 
         record.scheduleId === editingAttendanceRecord.scheduleId
@@ -525,11 +509,7 @@ const AttendancePage = () => {
         ot_hours: updatedTimes.ot_hours || null,
       };
       
-      console.log('Sending updatedRecord:', updatedRecord);
-      console.log('Original updatedTimes.ot_hours:', updatedTimes.ot_hours);
-      
       if (existingRecord.id) {
-        // Update existing attendance record
         await attendanceAPI.update(existingRecord.id, updatedRecord);
         setToast({ 
           show: true, 
@@ -537,7 +517,6 @@ const AttendancePage = () => {
           type: 'success' 
         });
       } else {
-        // Create new attendance record
         await attendanceAPI.create(updatedRecord);
         setToast({ 
           show: true, 
@@ -546,7 +525,6 @@ const AttendancePage = () => {
         });
       }
       
-      // Refresh attendance data
       const response = await attendanceAPI.getDaily({ date: currentDate });
       setDailyAttendanceData(response.data || []);
       
@@ -559,17 +537,8 @@ const AttendancePage = () => {
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.response?.data?.errors) {
-        // Handle validation errors
         const validationErrors = Object.values(error.response.data.errors).flat();
         errorMessage = `Please check your input: ${validationErrors.join(', ')}`;
-      } else if (error.response?.status === 404) {
-        errorMessage = 'Attendance record not found. It may have been deleted.';
-      } else if (error.response?.status === 403) {
-        errorMessage = 'You do not have permission to update this attendance record.';
-      } else if (error.response?.status >= 500) {
-        errorMessage = 'Server error occurred. Please try again later.';
-      } else if (error.message && !error.message.includes('ReferenceError') && !error.message.includes('TypeError')) {
-        errorMessage = 'Unable to save attendance record. Please check your connection and try again.';
       }
       
       setToast({ 
@@ -620,6 +589,7 @@ const AttendancePage = () => {
     }
   };
 
+  // OLD IMPORT - Keep for backward compatibility
   const handleImportClick = () => { fileInputRef.current.click(); };
 
   const handleImport = (event) => {
@@ -677,6 +647,147 @@ const AttendancePage = () => {
     }
     event.target.value = null;
   };
+
+  // NEW EXCEL IMPORT HANDLER
+  const handleExcelImportClick = () => {
+    excelImportRef.current.click();
+  };
+
+  const handleExcelImportFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setShowImportPreview(true);
+    }
+    event.target.value = null;
+  };
+
+  // CONFIRM IMPORT WITH SCHEDULE CREATION
+  const handleConfirmImport = async (groupedByDate) => {
+    setIsImporting(true);
+    
+    try {
+      let totalImported = 0;
+      let schedulesCreated = 0;
+      
+      // Process each date
+      for (const [date, records] of Object.entries(groupedByDate)) {
+        try {
+          // Check if schedule exists for this date
+          let scheduleId = null;
+          const dailyResponse = await attendanceAPI.getDaily({ date });
+          const existingRecords = dailyResponse.data || [];
+          
+          if (existingRecords.length > 0) {
+            scheduleId = existingRecords[0]?.scheduleId;
+          }
+          
+          // If no schedule exists, create one
+          if (!scheduleId) {
+            const scheduleResponse = await scheduleAPI.create({
+              date: date,
+              description: `Imported schedule for ${date}`
+            });
+            scheduleId = scheduleResponse.data.id;
+            schedulesCreated++;
+          }
+          
+          // Group records by employee for this date
+          const recordsByEmployee = records.reduce((acc, record) => {
+            const empId = record.matchedEmployee.id;
+            if (!acc[empId]) {
+              acc[empId] = [];
+            }
+            acc[empId].push(record);
+            return acc;
+          }, {});
+          
+          // Process each employee's records
+          for (const [empId, empRecords] of Object.entries(recordsByEmployee)) {
+            // Sort records by time
+            const sortedRecords = empRecords.sort((a, b) => 
+              a.dateTime.getTime() - b.dateTime.getTime()
+            );
+            
+            // Extract time values based on log type
+            const timeData = {
+              sign_in: null,
+              sign_out: null,
+              break_in: null,
+              break_out: null
+            };
+            
+            sortedRecords.forEach(record => {
+              const timeStr = record.dateTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+              
+              if (record.logType === 'Sign In') {
+                timeData.sign_in = timeStr;
+              } else if (record.logType === 'Sign Out') {
+                timeData.sign_out = timeStr;
+              } else if (record.logType === 'Break In') {
+                timeData.break_in = timeStr;
+              } else if (record.logType === 'Break Out') {
+                timeData.break_out = timeStr;
+              }
+            });
+            
+            // Create or update attendance record
+            try {
+              // Check if attendance record already exists
+              const existingAttendance = existingRecords.find(r => 
+                r.empId.toString() === empId.toString()
+              );
+              
+              if (existingAttendance && existingAttendance.id) {
+                // Update existing record
+                await attendanceAPI.update(existingAttendance.id, {
+                  ...timeData,
+                  schedule_assignment_id: existingAttendance.schedule_assignment_id
+                });
+              } else {
+                // Create new attendance record
+                // First, need to create schedule assignment
+                const assignmentResponse = await scheduleAPI.assignEmployee({
+                  schedule_id: scheduleId,
+                  employee_id: empId
+                });
+                
+                await attendanceAPI.create({
+                  ...timeData,
+                  schedule_assignment_id: assignmentResponse.data.id
+                });
+              }
+              
+              totalImported++;
+            } catch (error) {
+              console.error(`Error creating/updating attendance for employee ${empId}:`, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing date ${date}:`, error);
+        }
+      }
+      
+      // Refresh data
+      const response = await attendanceAPI.getDaily({ date: currentDate });
+      setDailyAttendanceData(response.data || []);
+      
+      setToast({
+        show: true,
+        message: `Successfully imported ${totalImported} attendance records${schedulesCreated > 0 ? ` and created ${schedulesCreated} new schedule(s)` : ''}`,
+        type: 'success'
+      });
+      
+    } catch (error) {
+      console.error('Error confirming import:', error);
+      setToast({
+        show: true,
+        message: 'Failed to import some or all records. Please check the console for details.',
+        type: 'error'
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
   
   const uniquePositions = useMemo(() => ['All Positions', ...new Set(dailyAttendanceList.map(item => item.position))], [dailyAttendanceList]);
 
@@ -685,17 +796,45 @@ const AttendancePage = () => {
       <header className="page-header attendance-page-header d-flex justify-content-between align-items-md-center p-3">
         <h1 className="page-main-title m-0">Attendance Management</h1>
         <div className="d-flex align-items-center gap-2">
+            {/* Old Import - Direct for current date */}
             <input type="file" ref={fileInputRef} onChange={handleImport} className="d-none" accept=".xlsx, .xls" />
+            
+            {/* New Excel Import - With preview and validation */}
+            <input 
+              type="file" 
+              ref={excelImportRef} 
+              onChange={handleExcelImportFileSelect} 
+              className="d-none" 
+              accept=".xlsx, .xls" 
+            />
+            
             <div className="btn-group">
               <button 
-                className="btn btn-outline-secondary" 
-                onClick={handleImportClick}
-                title="Import Excel files (.xlsx, .xls) - Direct import for current date"
+                className="btn btn-outline-secondary dropdown-toggle" 
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
               >
-                <i className="bi bi-file-earmark me-2"></i>Import
+                <i className="bi bi-file-earmark-arrow-up me-2"></i>Import
               </button>
+              <ul className="dropdown-menu">
+                <li>
+                  <button className="dropdown-item" onClick={handleExcelImportClick}>
+                    <i className="bi bi-file-earmark-spreadsheet me-2"></i>
+                    Excel Import (with validation)
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item" onClick={handleImportClick}>
+                    <i className="bi bi-file-earmark me-2"></i>
+                    Quick Import (current date)
+                  </button>
+                </li>
+              </ul>
             </div>
-            <button className="btn btn-outline-secondary" onClick={handleExport} disabled={activeView !== 'daily' || !sortedAndFilteredList || sortedAndFilteredList.length === 0}><i className="bi bi-download me-2"></i>Export</button>
+            
+            <button className="btn btn-outline-secondary" onClick={handleExport} disabled={activeView !== 'daily' || !sortedAndFilteredList || sortedAndFilteredList.length === 0}>
+              <i className="bi bi-download me-2"></i>Export
+            </button>
             <button className="btn btn-outline-secondary" onClick={handleGenerateReport} disabled={activeView !== 'daily' || !sortedAndFilteredList || sortedAndFilteredList.length === 0}>
                 <i className="bi bi-file-earmark-text-fill me-2"></i>Generate Report
             </button>
@@ -807,8 +946,8 @@ const AttendancePage = () => {
         <ImportPreviewModal
           show={showImportPreview}
           onClose={() => setShowImportPreview(false)}
-          importData={validatedImportData}
           onConfirm={handleConfirmImport}
+          employeesList={allEmployees}
           isLoading={isImporting}
         />
       )}

@@ -7,19 +7,20 @@ import './MyPayrollPage.css';
 
 const formatCurrency = (value) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const MyPayrollHistoryPage = ({ currentUser, payrolls = [] }) => {
-  const context = useOutletContext();
-  const employees = context?.employees;
-  const positions = context?.positions;
-  const theme = context?.theme;
-  
+const MyPayrollHistoryPage = ({ currentUser = {}, payrolls = [] }) => {
+  const context = useOutletContext() || {};
+  const employees = Array.isArray(context.employees) ? context.employees : [];
+  const positions = Array.isArray(context.positions) ? context.positions : [];
+  const theme = context.theme;
+
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator(theme);
 
   const myPayrolls = useMemo(() => {
     return payrolls
       .map(run => {
-        const myRecord = run.records.find(rec => rec.empId === currentUser.id);
+        const myRecord = run.records.find(rec => rec.empId === currentUser?.id);
+
         if (!myRecord) return null;
         
         const totalEarnings = (myRecord.earnings || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -31,18 +32,18 @@ const MyPayrollHistoryPage = ({ currentUser, payrolls = [] }) => {
       })
       .filter(Boolean)
       .sort((a,b) => new Date(b.cutOff.split(' to ')[0]) - new Date(a.cutOff.split(' to ')[0]));
-  }, [payrolls, currentUser.id]);
+  }, [payrolls, currentUser?.id]);
 
   const employeeDetails = useMemo(() => {
-      if (!employees || !positions) {
+      if (!currentUser?.id) {
           return null;
       }
-      const emp = employees.find(e => e.id === currentUser.id);
+      const emp = employees.find(e => e?.id === currentUser.id);
       if (!emp) return null;
 
-      const pos = positions.find(p => p.id === emp.positionId);
+      const pos = positions.find(p => p?.id === emp.positionId);
       return { ...emp, positionTitle: pos ? pos.title : 'N/A' };
-  }, [employees, positions, currentUser.id]);
+  }, [employees, positions, currentUser?.id]);
 
   const handleViewPayslip = async (record, run) => {
     if (!employeeDetails) {

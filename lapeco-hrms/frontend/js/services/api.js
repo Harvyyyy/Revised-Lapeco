@@ -152,6 +152,7 @@ export const leaveAPI = {
 export const payrollAPI = {
   getAll: () => api.get('/payroll'),
   compute: (params) => api.get('/payroll/compute', { params }),
+  myProjection: (params) => api.get('/payroll/my-projection', { params }),
   generate: (data) => api.post('/payroll/generate', data),
   update: (id, data) => api.put(`/payroll/${id}`, data),
 };

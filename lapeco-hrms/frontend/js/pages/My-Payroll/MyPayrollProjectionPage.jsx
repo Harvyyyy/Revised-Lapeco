@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import './MyPayrollPage.css';
+import { payrollAPI } from '../../services/api';
 
-const formatCurrency = (value) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatCurrency = (value) => Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const getYears = () => {
     const currentYear = new Date().getFullYear();
@@ -20,8 +21,7 @@ const PERIODS = [
     { value: '2', label: '2nd Half (11th - 25th)' },
 ];
 
-
-const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], attendanceLogs = [], holidays = [] }) => {
+const MyPayrollProjectionPage = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
@@ -29,74 +29,55 @@ const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], 
     return day >= 11 && day <= 25 ? '2' : '1';
   });
 
-  const positionMap = useMemo(() => new Map(positions.map(p => [p.id, p])), [positions]);
-  const holidayMap = useMemo(() => new Map(holidays.map(h => [h.date, h])), [holidays]);
-  const scheduleMap = useMemo(() => new Map(schedules.map(s => [`${s.empId}-${s.date}`, s])), [schedules]);
-  const attendanceMap = useMemo(() => new Map(attendanceLogs.map(a => [`${a.empId}-${a.date}`, a])), [attendanceLogs]);
-  
-  const { startDate, endDate, cutOffString } = useMemo(() => {
-    const year = selectedYear;
-    const month = selectedMonth;
+  const [projectionData, setProjectionData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-    if (selectedPeriod === '1') { // 1st Half: 26th of prev month to 10th of current month
-        const prevMonth = month === 0 ? 11 : month - 1;
-        const prevMonthYear = month === 0 ? year - 1 : year;
-        const start = new Date(Date.UTC(prevMonthYear, prevMonth, 26)).toISOString().split('T')[0];
-        const end = new Date(Date.UTC(year, month, 10)).toISOString().split('T')[0];
-        return { startDate: start, endDate: end, cutOffString: `${start} to ${end}` };
-    } else { // 2nd Half: 11th to 25th of current month
-        const start = new Date(Date.UTC(year, month, 11)).toISOString().split('T')[0];
-        const end = new Date(Date.UTC(year, month, 25)).toISOString().split('T')[0];
-        return { startDate: start, endDate: end, cutOffString: `${start} to ${end}` };
-    }
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchProjection = async () => {
+      try {
+        setIsLoading(true);
+        setError('');
+        const { data } = await payrollAPI.myProjection({
+          year: selectedYear,
+          month: selectedMonth,
+          period: selectedPeriod,
+        });
+
+        if (isCancelled) return;
+
+        const projection = data?.projection;
+        if (projection) {
+          setProjectionData({
+            totalGross: Number(projection.totalGross ?? 0),
+            breakdown: Array.isArray(projection.breakdown) ? projection.breakdown : [],
+            cutOff: projection.cutOff ?? data?.period?.label,
+          });
+        } else {
+          setProjectionData(null);
+        }
+      } catch (err) {
+        if (isCancelled) return;
+        const message = err.response?.data?.message ?? 'Failed to load payroll projection.';
+        setError(message);
+        setProjectionData(null);
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchProjection();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [selectedYear, selectedMonth, selectedPeriod]);
 
-  const projectionData = useMemo(() => {
-    if (!startDate || !endDate) return null;
-    
-    const position = positionMap.get(currentUser.positionId);
-    if (!position) return null;
-
-    const dailyRate = position.monthlySalary / 22; // Assumption: 22 work days
-    let totalGross = 0;
-    const breakdown = [];
-    const today = new Date();
-    today.setHours(23, 59, 59, 999); 
-
-    for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
-        if (d > today) continue;
-        
-        const dateStr = d.toISOString().split('T')[0];
-        const dayOfWeek = new Date(dateStr + 'T00:00:00').getDay();
-        // Skip weekends for calculation unless explicitly scheduled
-        const schedule = scheduleMap.get(`${currentUser.id}-${dateStr}`);
-        if (!schedule && (dayOfWeek === 0 || dayOfWeek === 6)) continue;
-        if (!schedule) continue; // Skip if not scheduled on a weekday either
-
-        const attendance = attendanceMap.get(`${currentUser.id}-${dateStr}`);
-        const holiday = holidayMap.get(dateStr);
-        let dailyPay = 0;
-        let dayStatus = 'Absent';
-
-        if (attendance && attendance.signIn) {
-            dailyPay = dailyRate;
-            dayStatus = 'Present';
-            if (holiday) {
-                if (holiday.type === 'Regular Holiday') { dailyPay *= 2; }
-                if (holiday.type === 'Special Non-Working Day') { dailyPay *= 1.3; }
-                dayStatus = `Worked Holiday (${holiday.name})`;
-            }
-        }
-        totalGross += dailyPay;
-        breakdown.push({ date: dateStr, status: dayStatus, pay: dailyPay });
-    }
-    
-    return {
-        totalGross, 
-        breakdown,
-        cutOff: cutOffString
-    };
-  }, [startDate, endDate, currentUser, positionMap, scheduleMap, attendanceMap, holidayMap]);
+  const breakdown = Array.isArray(projectionData?.breakdown) ? projectionData.breakdown : [];
 
   return (
     <div className="payroll-projection-container">
@@ -127,7 +108,19 @@ const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], 
         </div>
       </div>
       
-      {projectionData && (
+      {isLoading && (
+        <div className="card shadow-sm mt-4">
+          <div className="card-body p-4 text-center text-muted">
+            Calculating projection...
+          </div>
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <div className="alert alert-danger mt-4" role="alert">{error}</div>
+      )}
+
+      {!isLoading && !error && projectionData && (
         <div className="card shadow-sm mt-4">
             <div className="card-body p-4">
                 <div className="projection-summary-card">
@@ -141,7 +134,7 @@ const MyPayrollProjectionPage = ({ currentUser, positions = [], schedules = [], 
                     <table className="table data-table table-sm table-striped mb-0">
                         <thead><tr><th>Date</th><th>Status</th><th className="text-end">Estimated Earning</th></tr></thead>
                         <tbody>
-                            {projectionData.breakdown.length > 0 ? projectionData.breakdown.map((day, index) => (
+                            {breakdown.length > 0 ? breakdown.map((day, index) => (
                                 <tr key={index}>
                                     <td>{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
                                     <td>{day.status}</td>
