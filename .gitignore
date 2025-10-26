@@ -37,16 +37,16 @@ lapeco-hrms/storage/framework/testing
 lapeco-hrms/storage/framework/data
 lapeco-hrms/storage/framework/data
 
-# --- Recr_LAPECO (React app) ---
-Recr_LAPECO/node_modules/
-Recr_LAPECO/.pnp
-Recr_LAPECO/.pnp.js
-Recr_LAPECO/coverage/
-Recr_LAPECO/build/
-Recr_LAPECO/.env.local
-Recr_LAPECO/.env.development.local
-Recr_LAPECO/.env.test.local
-Recr_LAPECO/.env.production.local
-Recr_LAPECO/npm-debug.log*
-Recr_LAPECO/yarn-debug.log*
-Recr_LAPECO/yarn-error.log*
+# --- lapeco-website (React app) ---
+lapeco-website/node_modules/
+lapeco-website/.pnp
+lapeco-website/.pnp.js
+lapeco-website/coverage/
+lapeco-website/build/
+lapeco-website/.env.local
+lapeco-website/.env.development.local
+lapeco-website/.env.test.local
+lapeco-website/.env.production.local
+lapeco-website/npm-debug.log*
+lapeco-website/yarn-debug.log*
+lapeco-website/yarn-error.log*

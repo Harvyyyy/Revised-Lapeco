@@ -1,0 +1,118 @@
+﻿.contact-header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+.section-title {
+  font-weight: 700;
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+.section-subtitle {
+  font-size: 1.1rem;
+  color: #6c757d;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.contact-method-card {
+  background-color: #ffffff;
+  padding: 2rem;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  height: 100%;
+  transition: all 0.3s ease-in-out;
+}
+.contact-method-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+.contact-icon-compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background-color: #d1e7dd;
+  border-radius: 50%;
+  color: #198754;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.contact-details-compact {
+  font-size: 0.95rem;
+}
+.contact-details-compact a,
+.contact-details-compact span {
+  color: #6c757d;
+  text-decoration: none;
+  display: block;
+  line-height: 1.6;
+  font-weight: 500;
+  word-break: break-word;
+}
+.contact-details-compact a:hover {
+  color: #198754;
+  text-decoration: underline;
+}
+.form-wrapper {
+  padding: 2rem;
+  background-color: #f8f9fa;
+  border-radius: 15px;
+  height: 100%;
+}
+.map-container {
+  width: 100%;
+  min-height: 450px;
+  height: 100%;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #495057;
+}
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #82dfa9;
+  box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.25);
+}
+.submit-btn {
+  width: 100%;
+  padding: 0.8rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #198754;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.submit-btn:hover {
+  background-color: #157347;
+}
+.submit-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+.submit-feedback {
+  margin-top: 1rem;
+  color: #198754;
+  font-weight: 500;
+  text-align: center;
+}
