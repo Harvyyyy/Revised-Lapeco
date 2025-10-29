@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Log;
 class ScheduleController extends Controller
 {
     use LogsActivity;
+
     public function store(Request $request)
     {
         try {
@@ -183,6 +184,25 @@ class ScheduleController extends Controller
                 'error' => 'SERVER_ERROR'
             ], 500);
         }
+    }
+
+    /**
+     * Provide necessary reference data for creating a schedule.
+     */
+    public function createData(Request $request)
+    {
+        return response()->json([
+            'employees' => User::all(),
+            'positions' => Position::all()->map(function ($position) {
+                return [
+                    'id' => $position->id,
+                    'title' => $position->name,
+                ];
+            }),
+            'initialDate' => $request->input('date'),
+            'method' => $request->input('method'),
+            'sourceData' => $request->input('sourceData'),
+        ]);
     }
 
     public function update(Request $request, $id)
