@@ -79,6 +79,8 @@ const PositionsPage = (props) => {
   const [employeeToAdd, setEmployeeToAdd] = useState(null);
   const [showReassignConfirmModal, setShowReassignConfirmModal] = useState(false);
   const [reassignmentData, setReassignmentData] = useState(null);
+  const [showRoleChangeModal, setShowRoleChangeModal] = useState(false);
+  const [roleChangeData, setRoleChangeData] = useState({ employee: null, newRole: '', roleName: '' });
 
   // Load positions from API
   useEffect(() => {
@@ -268,13 +270,36 @@ const PositionsPage = (props) => {
     }
   };
 
-  const handleToggleLeader = async (employeeId) => {
+  const handleRoleChange = (employee, newRole, roleName) => {
+    setRoleChangeData({
+      employee,
+      newRole,
+      roleName,
+      currentRole: employee.role
+    });
+    setShowRoleChangeModal(true);
+  };
+
+  const confirmRoleChange = async () => {
+    if (!roleChangeData.employee || !roleChangeData.newRole) return;
+
     try {
-      const response = await employeeAPI.toggleTeamLeader(employeeId);
+      let response;
       
-      // Show success message
-      if (response.data?.message) {
+      if (roleChangeData.newRole === 'TEAM_LEADER' || roleChangeData.newRole === 'REGULAR_EMPLOYEE') {
+        // Toggle between TEAM_LEADER and REGULAR_EMPLOYEE
+        response = await employeeAPI.toggleTeamLeader(roleChangeData.employee.id);
+      } else if (roleChangeData.newRole === 'HR_PERSONNEL') {
+        // Set as HR_PERSONNEL
+        response = await employeeAPI.update(roleChangeData.employee.id, { 
+          role: 'HR_PERSONNEL' 
+        });
+      }
+      
+      if (response?.data?.message) {
         setToast({ show: true, message: response.data.message, type: 'success' });
+      } else {
+        setToast({ show: true, message: 'Role updated successfully', type: 'success' });
       }
       
       // Refresh the position employees to reflect the role change
@@ -282,10 +307,17 @@ const PositionsPage = (props) => {
         await refreshPositionEmployees(selectedPosition.id);
       }
     } catch (error) {
-      // Handle error
-      const errorMessage = error.response?.data?.message || 'Failed to update team leader status. Please try again.';
+      const errorMessage = error.response?.data?.message || 'Failed to update role. Please try again.';
       setToast({ show: true, message: errorMessage, type: 'error' });
     }
+    
+    setShowRoleChangeModal(false);
+    setRoleChangeData({ employee: null, newRole: '', roleName: '' });
+  };
+
+  const cancelRoleChange = () => {
+    setShowRoleChangeModal(false);
+    setRoleChangeData({ employee: null, newRole: '', roleName: '' });
   };
 
   const handleViewPositionDetails = async (position) => {
@@ -375,6 +407,21 @@ const PositionsPage = (props) => {
           </button>
         </header>
 
+        {/* Role Change Confirmation Modal - Only shown in position details view */}
+        <ConfirmationModal
+          show={showRoleChangeModal}
+          title={`Change Role to ${roleChangeData.roleName}`}
+          onClose={cancelRoleChange}
+          onConfirm={confirmRoleChange}
+          confirmText="Confirm Change"
+          confirmVariant="primary"
+        >
+          Are you sure you want to change {roleChangeData.employee?.name}'s role from 
+          {roleChangeData.currentRole === 'TEAM_LEADER' ? ' Team Leader ' : 
+           roleChangeData.currentRole === 'HR_PERSONNEL' ? ' HR Personnel ' : ' Regular Employee '}
+          to {roleChangeData.roleName}?
+        </ConfirmationModal>
+
         <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h1 className="page-main-title mb-0">{selectedPosition.title}</h1>
@@ -400,21 +447,86 @@ const PositionsPage = (props) => {
               <table className="table data-table mb-0">
                 <thead><tr><th>Employee ID</th><th>Name</th><th>Role</th><th>Action</th></tr></thead>
                 <tbody>
-                  {displayedEmployeesInPosition.map(emp => (
-                    <tr key={emp.id}>
-                      <td>{emp.id}</td><td>{emp.name}</td>
-                      <td>{emp.isTeamLeader ? <span className="badge bg-success">Team Leader</span> : 'Member'}</td>
-                      <td>
-                        <div className="dropdown"><button className="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="dropdown">Manage <i className="bi bi-caret-down-fill"></i></button>
-                          <ul className="dropdown-menu dropdown-menu-end">
-                            <li><a className="dropdown-item" href="#" onClick={(e) => { e.preventDefault(); handleToggleLeader(emp.id); }}>{emp.isTeamLeader ? 'Unset as Leader' : 'Set as Leader'}</a></li>
-                            <li><hr className="dropdown-divider" /></li>
-                            <li><a className="dropdown-item text-danger" href="#" onClick={(e) => { e.preventDefault(); handleRemoveFromPosition(emp); }}>Remove from Position</a></li>
-                          </ul>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {displayedEmployeesInPosition.map(emp => {
+                    const isTeamLeader = emp.role === 'TEAM_LEADER';
+                    const isHR = emp.role === 'HR_PERSONNEL';
+                    
+                    return (
+                      <tr key={emp.id}>
+                        <td>{emp.employee_id || emp.id}</td>
+                        <td>{emp.name}</td>
+                        <td>
+                          {isHR ? (
+                            <span className="badge bg-primary">HR Personnel</span>
+                          ) : isTeamLeader ? (
+                            <span className="badge bg-success">Team Leader</span>
+                          ) : (
+                            <span className="text-muted">Member</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="dropdown">
+                            <button 
+                              className="btn btn-outline-secondary btn-sm" 
+                              type="button" 
+                              data-bs-toggle="dropdown"
+                              aria-expanded="false"
+                            >
+                              Manage <i className="bi bi-caret-down-fill"></i>
+                            </button>
+                            <ul className="dropdown-menu dropdown-menu-end">
+                              {!isHR && (
+                                <li>
+                                  <a 
+                                    className="dropdown-item" 
+                                    href="#" 
+                                    onClick={(e) => { 
+                                      e.preventDefault(); 
+                                      handleRoleChange(emp, 
+                                        isTeamLeader ? 'REGULAR_EMPLOYEE' : 'TEAM_LEADER',
+                                        isTeamLeader ? 'Regular Employee' : 'Team Leader'
+                                      ); 
+                                    }}
+                                  >
+                                    {isTeamLeader ? 'Unset as Leader' : 'Set as Leader'}
+                                  </a>
+                                </li>
+                              )}
+                              {!isHR && !isTeamLeader && (
+                                <li>
+                                  <a 
+                                    className="dropdown-item text-primary" 
+                                    href="#" 
+                                    onClick={(e) => { 
+                                      e.preventDefault();
+                                      handleRoleChange(emp, 'HR_PERSONNEL', 'HR Personnel');
+                                    }}
+                                  >
+                                    Set as HR Personnel
+                                  </a>
+                                </li>
+                              )}
+                              {!isHR && (
+                                <li><hr className="dropdown-divider" /></li>
+                              )}
+                              <li>
+                                <a 
+                                  className="dropdown-item text-danger" 
+                                  href="#" 
+                                  onClick={(e) => { 
+                                    e.preventDefault(); 
+                                    handleRemoveFromPosition(emp); 
+                                  }}
+                                >
+                                  Remove from Position
+                                </a>
+                              </li>
+                            </ul>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {displayedEmployeesInPosition.length === 0 && (
                     <tr><td colSpan="4" className="text-center p-5">No employees match your search in this position.</td></tr>
                   )}
