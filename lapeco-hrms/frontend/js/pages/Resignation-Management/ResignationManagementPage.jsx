@@ -65,6 +65,7 @@ const ResignationManagementPage = () => {
                 ]);
 
                 // Transform resignation data to match expected format
+                console.log('All resignations from API:', resignationsRes.data);
                 setResignations(resignationsRes.data.map(resignation => ({
                     id: resignation.id,
                     employeeId: resignation.employee_id,
@@ -73,6 +74,7 @@ const ResignationManagementPage = () => {
                     status: resignation.status === 'pending' ? 'Pending'
                         : resignation.status === 'approved' ? 'Approved'
                         : resignation.status === 'rejected' ? 'Declined'
+                        : resignation.status === 'withdrawn' ? 'Withdrawn'
                         : resignation.status,
                     reason: resignation.reason,
                     submissionDate: resignation.submission_date,
@@ -113,6 +115,7 @@ const ResignationManagementPage = () => {
             status: resignation.status === 'pending' ? 'Pending'
                 : resignation.status === 'approved' ? 'Approved'
                 : resignation.status === 'rejected' ? 'Declined'
+                : resignation.status === 'withdrawn' ? 'Withdrawn'
                 : resignation.status,
             reason: resignation.reason,
             submissionDate: resignation.submission_date,
@@ -124,20 +127,29 @@ const ResignationManagementPage = () => {
     }, []);
 
     const activeResignations = useMemo(() => {
-        return (resignations || []).filter(req => {
-            if (!req || !req.id) return false; // Filter out any invalid records
+        console.log('Total resignations before filtering:', resignations?.length);
+        const filtered = (resignations || []).filter(req => {
+            if (!req || !req.id) {
+                console.log('Filtered out invalid record:', req);
+                return false;
+            }
             
-            // Hide rejected/declined requests
-            if (req.status === 'Declined' || req.status === 'Rejected') {
+            // Hide rejected/declined/withdrawn requests
+            if (req.status === 'Declined' || req.status === 'Rejected' || req.status === 'Withdrawn') {
+                console.log('Filtered out due to status:', req.employeeName, req.status);
                 return false;
             }
             
             // Hide if the request is 'Approved' and its effective date is in the past
             if (req.status === 'Approved' && req.effectiveDate && isPast(parseISO(req.effectiveDate)) && !isToday(parseISO(req.effectiveDate))) {
+                console.log('Filtered out approved with past date:', req.employeeName);
                 return false;
             }
+            console.log('Keeping resignation:', req.employeeName, req.status);
             return true;
         });
+        console.log('Active resignations after filtering:', filtered.length);
+        return filtered;
     }, [resignations]);
 
     const stats = useMemo(() => {
@@ -271,8 +283,13 @@ const ResignationManagementPage = () => {
                 const transformedResignations = resignationsRes.data.map(resignation => ({
                     id: resignation.id,
                     employeeId: resignation.employee_id,
-                    employeeName: resignation.employee?.name || 'Unknown Employee',
-                    status: resignation.status === 'pending' ? 'Pending' : 'Approved',
+                    employeeName: resignation.employee_full_name || resignation.employee?.name || 'Unknown Employee',
+                    position: resignation.position_name || resignation.employee?.position?.title || resignation.employee?.position?.name || 'Unassigned',
+                    status: resignation.status === 'pending' ? 'Pending'
+                        : resignation.status === 'approved' ? 'Approved'
+                        : resignation.status === 'rejected' ? 'Declined'
+                        : resignation.status === 'withdrawn' ? 'Withdrawn'
+                        : resignation.status,
                     reason: resignation.reason,
                     submissionDate: resignation.submission_date,
                     effectiveDate: resignation.effective_date,

@@ -107,6 +107,37 @@ class ResignationController extends Controller
             'approved_at' => 'nullable|date'
         ]);
 
+        // Load employee relationship
+        $resignation->load('employee');
+
+        // Update employee status if resignation is approved or withdrawn
+        if (isset($validated['status']) && $resignation->employee) {
+            if ($validated['status'] === 'approved') {
+                // Mark as resigned but keep account active until effective date
+                $resignation->employee->update([
+                    'employment_status' => 'resigned',
+                ]);
+
+                // If effective date is today or in the past, deactivate now
+                if ($resignation->effective_date) {
+                    $effective = \Carbon\Carbon::parse($resignation->effective_date);
+                    if ($effective->lte(\Carbon\Carbon::today())) {
+                        $resignation->employee->update([
+                            'account_status' => 'Deactivated'
+                        ]);
+                    }
+                }
+            } elseif ($validated['status'] === 'withdrawn') {
+                // When resignation is withdrawn, revert employee status back to active
+                // Only if they haven't been deactivated yet
+                if ($resignation->employee->account_status !== 'Deactivated') {
+                    $resignation->employee->update([
+                        'employment_status' => 'active',
+                    ]);
+                }
+            }
+        }
+
         $resignation->update($validated);
         $resignation->loadMissing([
             'employee' => function ($query) {
@@ -123,24 +154,65 @@ class ResignationController extends Controller
         // Log activity
         $this->logUpdate('resignation', $resignation->id, "Resignation #{$resignation->id}");
 
-        // Update employee status if resignation is approved
-        if (isset($validated['status']) && $validated['status'] === 'approved') {
-            // Mark as resigned but keep account active until effective date
-            $resignation->employee->update([
-                'employment_status' => 'resigned',
-            ]);
+        return response()->json($this->transformResignation($resignation));
+    }
 
-            // If effective date is today or in the past, deactivate now
-            if ($resignation->effective_date) {
-                $effective = \Carbon\Carbon::parse($resignation->effective_date);
-                if ($effective->lte(\Carbon\Carbon::today())) {
-                    $resignation->employee->update([
-                        'account_status' => 'Deactivated'
-                    ]);
-                }
-            }
+    /**
+     * Allow employees to withdraw their own resignation
+     */
+    public function withdrawOwn(Request $request, Resignation $resignation): JsonResponse
+    {
+        $currentUser = Auth::user();
+        
+        // Verify this resignation belongs to the current user
+        if ($resignation->employee_id !== $currentUser->id) {
+            return response()->json([
+                'message' => 'You can only withdraw your own resignation.'
+            ], 403);
         }
-
+        
+        // Only allow withdrawal if status has not been approved yet
+        if ($resignation->status === 'approved') {
+            return response()->json([
+                'message' => 'Approved resignations cannot be withdrawn.'
+            ], 422);
+        }
+        
+        // Don't allow re-withdrawing already withdrawn resignations
+        if ($resignation->status === 'withdrawn') {
+            return response()->json([
+                'message' => 'This resignation has already been withdrawn.'
+            ], 422);
+        }
+        
+        // Load employee relationship
+        $resignation->load('employee');
+        
+        // Update status to withdrawn
+        $resignation->update(['status' => 'withdrawn']);
+        
+        // Revert employee status back to active
+        if ($resignation->employee && $resignation->employee->account_status !== 'Deactivated') {
+            $resignation->employee->update([
+                'employment_status' => 'active',
+            ]);
+        }
+        
+        // Log withdrawal activity
+        $employeeName = $resignation->employee ? 
+            trim($resignation->employee->first_name . ' ' . $resignation->employee->last_name) : 
+            'Employee';
+        $this->logUpdate('resignation', $resignation->id, "Resignation withdrawn by {$employeeName}");
+        
+        $resignation->loadMissing([
+            'employee' => function ($query) {
+                $query->select('id', 'first_name', 'middle_name', 'last_name', 'position_id');
+            },
+            'employee.position' => function ($query) {
+                $query->select('id', 'name');
+            },
+        ]);
+        
         return response()->json($this->transformResignation($resignation));
     }
 
@@ -154,6 +226,9 @@ class ResignationController extends Controller
             'notes' => 'nullable|string'
         ]);
 
+        // Load employee relationship
+        $resignation->load('employee');
+        
         $updateData = $validated;
         
         if ($validated['status'] === 'approved') {
@@ -173,6 +248,20 @@ class ResignationController extends Controller
                         'account_status' => 'Deactivated'
                     ]);
                 }
+            }
+        } elseif ($validated['status'] === 'withdrawn') {
+            // When resignation is withdrawn, revert employee status back to active
+            // Only if they haven't been deactivated yet
+            if ($resignation->employee) {
+                if ($resignation->employee->account_status !== 'Deactivated') {
+                    $resignation->employee->update([
+                        'employment_status' => 'active',
+                    ]);
+                }
+                
+                // Log withdrawal activity
+                $employeeName = trim($resignation->employee->first_name . ' ' . $resignation->employee->last_name);
+                $this->logUpdate('resignation', $resignation->id, "Resignation withdrawn by {$employeeName}");
             }
         }
 
@@ -249,6 +338,7 @@ class ResignationController extends Controller
             'status' => match ($resignation->status) {
                 'pending' => 'Pending',
                 'approved' => 'Approved',
+                'withdrawn' => 'Withdrawn',
                 default => ucfirst($resignation->status ?? 'Pending'),
             },
             'reason' => $resignation->reason,

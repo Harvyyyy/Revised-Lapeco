@@ -301,6 +301,7 @@ export const resignationAPI = {
   delete: (id) => api.delete(`/resignations/${id}`),
   updateStatus: (id, data) => api.put(`/resignations/${id}/status`, data),
   updateEffectiveDate: (id, data) => api.put(`/resignations/${id}/effective-date`, data),
+  withdrawOwn: (id) => api.put(`/resignations/${id}/withdraw`),
 };
 
 // Termination API calls
