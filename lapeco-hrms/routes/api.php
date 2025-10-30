@@ -309,6 +309,8 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::middleware(['role.access:resignation,view'])->get('/resignations/{resignation}', [ResignationController::class, 'show']);
     Route::middleware(['role.access:resignation,update'])->put('/resignations/{resignation}', [ResignationController::class, 'update']);
     Route::middleware(['role.access:resignation,destroy'])->delete('/resignations/{resignation}', [ResignationController::class, 'destroy']);
+    // Allow employees to withdraw their own resignation
+    Route::put('/resignations/{resignation}/withdraw', [ResignationController::class, 'withdrawOwn']);
     Route::middleware(['role.access:resignation,update'])->put('/resignations/{resignation}/status', [ResignationController::class, 'updateStatus']);
     Route::middleware(['role.access:resignation,update'])->put('/resignations/{resignation}/effective-date', [ResignationController::class, 'updateEffectiveDate']);
 

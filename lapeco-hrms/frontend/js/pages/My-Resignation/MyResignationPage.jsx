@@ -185,6 +185,7 @@ const MyResignationPage = () => {
   const [myResignation, setMyResignation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
   // Initialize current user from localStorage
   useEffect(() => {
@@ -209,10 +210,15 @@ const MyResignationPage = () => {
         const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
         const mine = list.find(r => r.employee_id === currentUser.id);
         if (mine) {
-          const normalizedStatus = mine.status === 'pending' ? 'Pending' :
-            mine.status === 'approved' ? 'Approved' :
-            mine.status === 'rejected' ? 'Declined' :
-            mine.status === 'withdrawn' ? 'Withdrawn' : (mine.status || 'Pending');
+          console.log('Raw resignation data:', mine);
+          console.log('Raw status:', mine.status);
+          const statusLower = (mine.status || '').toLowerCase();
+          const normalizedStatus = statusLower === 'pending' ? 'Pending' :
+            statusLower === 'approved' ? 'Approved' :
+            statusLower === 'rejected' ? 'Declined' :
+            statusLower === 'withdrawn' ? 'Withdrawn' : 
+            mine.status || 'Pending';
+          console.log('Normalized status:', normalizedStatus);
           setMyResignation({
             id: mine.id,
             employeeId: mine.employee_id,
@@ -251,10 +257,12 @@ const MyResignationPage = () => {
       };
       const res = await resignationAPI.create(payload);
       const mine = res.data;
-      const normalizedStatus = mine.status === 'pending' ? 'Pending' :
-        mine.status === 'approved' ? 'Approved' :
-        mine.status === 'rejected' ? 'Declined' :
-        mine.status === 'withdrawn' ? 'Withdrawn' : (mine.status || 'Pending');
+      const statusLower = (mine.status || '').toLowerCase();
+      const normalizedStatus = statusLower === 'pending' ? 'Pending' :
+        statusLower === 'approved' ? 'Approved' :
+        statusLower === 'rejected' ? 'Declined' :
+        statusLower === 'withdrawn' ? 'Withdrawn' : 
+        mine.status || 'Pending';
       setMyResignation({
         id: mine.id,
         employeeId: mine.employee_id,
@@ -270,6 +278,25 @@ const MyResignationPage = () => {
     } catch (err) {
       console.error('Failed to submit resignation', err);
       setError('Failed to submit resignation. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const withdrawResignation = async () => {
+    if (!myResignation?.id) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await resignationAPI.withdrawOwn(myResignation.id);
+      // Clear the resignation - user can submit a new one
+      setMyResignation(null);
+      setShowWithdrawModal(false);
+    } catch (err) {
+      console.error('Failed to withdraw resignation', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to withdraw resignation. Please try again.';
+      setError(errorMessage);
+      setShowWithdrawModal(false);
     } finally {
       setLoading(false);
     }
@@ -298,6 +325,9 @@ const MyResignationPage = () => {
     const submissionDate = new Date(myResignation.submissionDate);
     const effectiveDate = new Date(myResignation.effectiveDate);
     
+    console.log('Resignation status in render:', myResignation.status);
+    console.log('Should show button?', myResignation.status !== 'Approved' && myResignation.status !== 'Withdrawn');
+    
     return (
       <div className="container-fluid p-0 page-module-container resignation-status-view">
         <div className="status-main-header">
@@ -305,8 +335,33 @@ const MyResignationPage = () => {
             <h1 className="page-main-title">Resignation Submitted</h1>
             <p className="text-muted">Your request is being processed. Here is the current status and timeline.</p>
           </div>
-          <span className={`status-badge status-${statusClass}`}>{myResignation.status}</span>
+          <div className="d-flex align-items-center gap-3">
+            <span className={`status-badge status-${statusClass}`}>{myResignation.status}</span>
+            {(() => {
+              const allowedStatuses = ['Pending', 'Declined', 'Rejected'];
+              const canWithdraw = allowedStatuses.includes(myResignation.status) || 
+                                  (myResignation.status && myResignation.status !== 'Approved' && myResignation.status !== 'Withdrawn');
+              console.log('Can withdraw?', canWithdraw, 'Status:', myResignation.status);
+              return canWithdraw ? (
+                <button 
+                  className="btn btn-outline-danger" 
+                  onClick={() => setShowWithdrawModal(true)}
+                  disabled={loading}
+                >
+                  <i className="bi bi-x-circle me-2"></i>Withdraw Request
+                </button>
+              ) : null;
+            })()}
+          </div>
         </div>
+        
+        {error && (
+          <div className="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+            {error}
+            <button type="button" className="btn-close" onClick={() => setError(null)}></button>
+          </div>
+        )}
 
         <div className="key-dates-grid">
             <div className="key-date-card">
@@ -351,6 +406,21 @@ const MyResignationPage = () => {
                 </div>
             </div>
         </div>
+
+        <ConfirmationModal
+          show={showWithdrawModal}
+          onClose={() => setShowWithdrawModal(false)}
+          onConfirm={withdrawResignation}
+          title="Withdraw Resignation Request"
+          confirmVariant="danger"
+          confirmText="Yes, Withdraw"
+        >
+          <p>Are you sure you want to withdraw your resignation request?</p>
+          <p className="text-muted mb-0">
+            <i className="bi bi-info-circle me-2"></i>
+            This action will cancel your resignation request and you will be able to submit a new one if needed.
+          </p>
+        </ConfirmationModal>
       </div>
     );
   }
