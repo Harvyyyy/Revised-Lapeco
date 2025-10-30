@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -29,8 +28,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TeamLeaderDashboardController;
 use App\Http\Controllers\EmployeeDashboardController;
 use App\Http\Controllers\LeaderboardController;
-use App\Models\User;
-use App\Models\Position;
+use App\Http\Controllers\UserProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,27 +63,7 @@ Route::get('/email/verify/{id}/{hash}', [ProfileController::class, 'verifyEmail'
 
 Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     // User profile
-    Route::get('/user', function (Request $request) {
-        $user = $request->user();
-        $userData = $user->toArray();
-        
-        // Add position name if user has a position
-        if ($user->position_id) {
-            $position = \App\Models\Position::find($user->position_id);
-            $userData['position_name'] = $position ? $position->name : null;
-        } else {
-            $userData['position_name'] = null;
-        }
-        
-        // Format profile picture URL with full path
-        if ($user->image_url) {
-            $userData['profile_picture_url'] = asset('storage/' . $user->image_url);
-        } else {
-            $userData['profile_picture_url'] = null;
-        }
-        
-        return response()->json($userData);
-    });
+    Route::get('/user', [UserProfileController::class, 'show']);
     
     // User theme preference
     Route::put('/user/theme-preference', [ProfileController::class, 'updateThemePreference']);
@@ -166,20 +144,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::middleware(['role.access:schedule,store'])->post('/schedules', [ScheduleController::class, 'store']);
     Route::middleware(['role.access:schedule,update'])->put('/schedules/{schedule}', [ScheduleController::class, 'update']);
     Route::middleware(['role.access:schedule,destroy'])->delete('/schedules/{schedule}', [ScheduleController::class, 'destroy']);
-    Route::get('/schedules/create', function (Request $request) {
-        return response()->json([
-            'employees' => User::all(),
-            'positions' => Position::all()->map(function ($pos) {
-                return [
-                    'id' => $pos->id,
-                    'title' => $pos->name,
-                ];
-            }),
-            'initialDate' => $request->input('date'),
-            'method' => $request->input('method'),
-            'sourceData' => $request->input('sourceData'),
-        ]);
-    });
+    Route::middleware(['role.access:schedule,store'])->get('/schedules/create', [ScheduleController::class, 'createData']);
 
     // Schedule Templates - with role-based access control
     Route::middleware(['role.access:schedule,index'])->get('/schedule-templates', [ScheduleController::class, 'templatesIndex']);
