@@ -1,24 +1,31 @@
 import { formatCurrency } from '../utils/formatters';
 
 export const generatePayrollRunSummaryReport = async (layoutManager, dataSources, params) => {
-  const { payrolls } = dataSources;
+  const run = dataSources;
   const { runId } = params;
   const { doc, margin } = layoutManager;
 
-  const run = (payrolls || []).find(p => p.runId === runId);
-  if (!run) {
-    doc.text("The selected payroll run could not be found.", margin, layoutManager.y);
+  console.log("[DEBUG] payrollRunSummaryReport dataSources:", dataSources); // ADDED LOG
+
+  if (!run || !run.records) { // Check if run or run.records is undefined
+    doc.text("The selected payroll run could not be found or contains no records.", margin, layoutManager.y);
     return;
   }
 
   // --- 1. DATA PREPARATION ---
   const runTotals = run.records.reduce((acc, rec) => {
-    const totalEarnings = (rec.earnings || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const totalDeductions = Object.values(rec.deductions || {}).reduce((sum, val) => sum + val, 0) + 
-                             (rec.otherDeductions || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    acc.gross += totalEarnings;
-    acc.deductions += totalDeductions;
-    acc.net += totalEarnings - totalDeductions;
+    // Prefer detailed fields; gracefully fallback when only minimal data is available
+    const earningsFromItems = (rec.earnings || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const deductionsFromItems = Object.values(rec.deductions || {}).reduce((sum, val) => sum + (Number(val) || 0), 0) +
+                                (rec.otherDeductions || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const gross = Number(rec.grossEarning ?? earningsFromItems ?? 0);
+    // If we have explicit total deductions amount, prefer it; else use computed
+    const deductions = Math.abs(Number(rec.totalDeductionsAmount ?? deductionsFromItems ?? 0));
+    const net = Number(rec.netPay ?? (gross - deductions));
+
+    acc.gross += gross;
+    acc.deductions += deductions;
+    acc.net += net;
     return acc;
   }, { gross: 0, deductions: 0, net: 0 });
   
@@ -68,10 +75,13 @@ export const generatePayrollRunSummaryReport = async (layoutManager, dataSources
   // --- 4. TABLE DATA ---
   const tableHead = ['ID', 'Employee Name', 'Gross Pay', 'Deductions', 'Net Pay', 'Status'];
   const tableBody = run.records.map(rec => {
-    const totalEarnings = (rec.earnings || []).reduce((s, i) => s + Number(i.amount), 0);
-    const totalDeductions = Object.values(rec.deductions).reduce((s, v) => s + v, 0) + (rec.otherDeductions || []).reduce((s, i) => s + Number(i.amount), 0);
-    const netPay = totalEarnings - totalDeductions;
-    return [rec.empId, rec.employeeName, formatCurrency(totalEarnings), formatCurrency(totalDeductions), formatCurrency(netPay), rec.status];
+    const earningsFromItems = (rec.earnings || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const deductionsFromItems = Object.values(rec.deductions || {}).reduce((s, v) => s + (Number(v) || 0), 0) +
+                                (rec.otherDeductions || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const gross = Number(rec.grossEarning ?? earningsFromItems ?? 0);
+    const deductions = Math.abs(Number(rec.totalDeductionsAmount ?? deductionsFromItems ?? 0));
+    const netPay = Number(rec.netPay ?? (gross - deductions));
+    return [rec.empId, rec.employeeName, formatCurrency(gross), formatCurrency(deductions), formatCurrency(netPay), rec.status];
   });
 
   // --- 5. PDF ASSEMBLY ---
