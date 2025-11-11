@@ -44,7 +44,8 @@ const ViewAttachmentsModal = ({ show, onClose, request }) => {
 
   const handlePreview = (docName) => {
     setPreviewTitle(docName);
-    generateReport('attachment_viewer', { documentName: docName });
+    // Pass leaveId so the viewer can fetch the actual attachment
+    generateReport('attachment_viewer', { leaveId: request.leaveId, documentName: docName });
     setShowPreview(true);
   };
 
@@ -68,12 +69,15 @@ const ViewAttachmentsModal = ({ show, onClose, request }) => {
             <div className="modal-body">
               <p className="text-muted">The following documents were attached to this leave request.</p>
               {attachments.length > 0 ? (
-                <ul className="list-group">
+                <ul className="list-group w-100">
                   {attachments.map((docName, index) => (
-                    <li key={index} className="list-group-item d-flex justify-content-between align-items-center">
-                      <span><i className="bi bi-file-earmark-text-fill me-2"></i>{docName}</span>
+                    <li key={index} className="list-group-item d-flex justify-content-between align-items-center overflow-hidden">
+                      <div className="d-flex align-items-center flex-grow-1 gap-2 min-w-0 overflow-hidden">
+                        <i className="bi bi-file-earmark-text-fill me-2"></i>
+                        <span className="text-truncate" title={docName}>{docName}</span>
+                      </div>
                       <button 
-                        className="btn btn-sm btn-outline-secondary"
+                        className="btn btn-sm btn-outline-secondary flex-shrink-0 ms-2"
                         onClick={() => handlePreview(docName)}
                         disabled={isLoading}
                       >

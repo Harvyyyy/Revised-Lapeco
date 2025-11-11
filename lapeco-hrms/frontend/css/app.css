@@ -1,3 +1,57 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Request Leave Modal UI enhancements */
+.rlm-title {
+  @apply text-lg font-semibold;
+}
+.request-leave-modal {
+  @apply pt-1;
+}
+.rlm-header {
+  @apply py-2 px-3 items-center;
+}
+.rlm-summary-card {
+  @apply rounded-md;
+}
+.request-leave-modal fieldset {
+  @apply mt-2 mb-3 p-3 rounded-md border border-gray-200;
+}
+.request-leave-modal legend,
+.request-leave-modal .maternity-legend,
+.request-leave-modal .paternity-legend {
+  @apply text-base font-semibold mb-2;
+}
+.request-leave-modal .form-label {
+  @apply text-sm font-medium mb-1;
+}
+.request-leave-modal .form-text {
+  @apply text-xs;
+  color: var(--text-secondary);
+}
+
+/* Ensure leave type name text stays high-contrast in all themes */
+.request-leave-modal .leave-type-name {
+  color: var(--text-primary);
+}
+.request-leave-modal .invalid-feedback,
+.request-leave-modal .alert {
+  @apply text-xs;
+}
+.request-leave-modal .form-control,
+.request-leave-modal .form-select,
+.request-leave-modal textarea.form-control {
+  @apply text-sm;
+}
+/* Dark mode visibility tweaks for alerts within the leave modal */
+.dark-theme .request-leave-modal .alert-info {
+  background-color: rgba(var(--info-rgb), 0.15) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+.dark-theme .request-leave-modal .alert-secondary {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}

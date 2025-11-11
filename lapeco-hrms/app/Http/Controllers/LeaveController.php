@@ -8,6 +8,8 @@
     use App\Models\LeaveCredit;
     use App\Models\Notification;
     use Illuminate\Validation\ValidationException;
+    use Illuminate\Support\Facades\Storage;
+    use Illuminate\Support\Str;
     use App\Traits\LogsActivity;
 
     class LeaveController extends Controller
@@ -66,6 +68,11 @@
                     'date_to' => 'required|date|after_or_equal:date_from',
                     'days' => 'required|integer|min:1',
                     'reason' => 'nullable|string',
+                    'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png,txt|max:5120',
+                    'maternityDetails' => 'nullable',
+                    'maternity_details' => 'nullable',
+                    'paternityDetails' => 'nullable',
+                    'paternity_details' => 'nullable',
                 ], [
                     'type.required' => 'Please select a leave type.',
                     'type.in' => 'The selected leave type is not valid.',
@@ -82,6 +89,42 @@
                 $user = $request->user();
                 $data['user_id'] = $user->id;
                 $data['status'] = 'Pending';
+
+                // Handle attachment upload (store in LOCAL private storage)
+                if ($request->hasFile('attachment') && $request->file('attachment')->isValid()) {
+                    $file = $request->file('attachment');
+                    $safeName = time() . '_' . preg_replace('/[^A-Za-z0-9_\-.]/', '_', $file->getClientOriginalName());
+                    $storedPath = $file->storeAs("private/leaves/{$user->id}", $safeName, 'local');
+                    $data['document_name'] = basename($storedPath);
+                    $data['document_path'] = $storedPath;
+                }
+
+                // Normalize maternity/paternity details from either camelCase or snake_case
+                $maternityInput = $request->input('maternity_details', $request->input('maternityDetails'));
+                $paternityInput = $request->input('paternity_details', $request->input('paternityDetails'));
+
+                if ($maternityInput) {
+                    // If stringified JSON, decode; otherwise ensure array
+                    if (is_string($maternityInput)) {
+                        $decoded = json_decode($maternityInput, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $data['maternity_details'] = $decoded;
+                        }
+                    } elseif (is_array($maternityInput)) {
+                        $data['maternity_details'] = $maternityInput;
+                    }
+                }
+
+                if ($paternityInput) {
+                    if (is_string($paternityInput)) {
+                        $decoded = json_decode($paternityInput, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $data['paternity_details'] = $decoded;
+                        }
+                    } elseif (is_array($paternityInput)) {
+                        $data['paternity_details'] = $paternityInput;
+                    }
+                }
                 
                 // Check leave credits for applicable leave types (skip Unpaid Leave and Paternity Leave)
                 if (!in_array($data['type'], ['Unpaid Leave', 'Paternity Leave'])) {
@@ -460,5 +503,44 @@
                 'message' => "Successfully reset used credits for {$affectedRecords} records.",
                 'affected_records' => $affectedRecords
             ]);
+        }
+
+        /**
+         * Stream/download the attached document for a leave request.
+         * HR can view any attachment; regular users can view their own.
+         */
+        public function downloadAttachment(Request $request, Leave $leave)
+        {
+            $user = $request->user();
+
+            // Permission: HR can view any; otherwise only the owner
+            if ($user->role !== 'HR_PERSONNEL' && $leave->user_id !== $user->id) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+
+            if (empty($leave->document_path)) {
+                return response()->json(['message' => 'No attachment found for this leave request.'], 404);
+            }
+
+            // Ensure the file exists in local storage
+            if (!Storage::disk('local')->exists($leave->document_path)) {
+                return response()->json(['message' => 'Attachment file not found.'], 404);
+            }
+
+            $downloadName = $leave->document_name ?: basename($leave->document_path);
+            $path = $leave->document_path;
+            $name = $downloadName;
+            $headers = [
+                'Content-Type' => mime_content_type(Storage::disk('local')->path($path)),
+                'Content-Disposition' => 'attachment; filename="' . $name . '"',
+            ];
+
+            return response()->stream(function () use ($path) {
+                $stream = Storage::disk('local')->readStream($path);
+                fpassthru($stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }, 200, $headers);
         }
     }
