@@ -498,6 +498,23 @@ class PerformanceController extends Controller
         ]);
     }
 
+    public function deletePeriod($periodId)
+    {
+        // Find the period or fail
+        $period = PerformanceEvaluationPeriod::findOrFail($periodId);
+
+        // Deleting the period will cascade to evaluations and evaluator responses
+        // due to FK constraints defined in migrations.
+        $period->delete();
+
+        // Log activity
+        $this->logDelete('evaluation_period', $periodId, $period->name);
+
+        return response()->json([
+            'message' => 'Evaluation period deleted successfully.',
+        ]);
+    }
+
     public function storeEvaluationResponse(Request $request, PerformanceEvaluation $evaluation)
     {
         $user = $request->user();

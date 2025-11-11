@@ -108,8 +108,8 @@ const HistoryAttendanceView = ({
                       <StatDonutChart 
                         size={60} 
                         strokeWidth={6} 
-                        label={`Present (${day.present - day.late}/${day.total})`} 
-                        percentage={day.total > 0 ? Math.round(((day.present - day.late) / day.total) * 100) : 0} 
+                        label={`Present (${day.present}/${day.total})`} 
+                        percentage={day.total > 0 ? Math.round((day.present / day.total) * 100) : 0} 
                         color="var(--app-success-color)" 
                       />
                       <StatDonutChart 
@@ -165,8 +165,8 @@ const HistoryAttendanceView = ({
               <StatDonutChart 
                 size={80} 
                 strokeWidth={8} 
-                label={`Present (${dailyAttendanceList.filter(e => e.status === 'Present').length}/${dailyAttendanceList.length})`} 
-                percentage={dailyAttendanceList.length > 0 ? Math.round((dailyAttendanceList.filter(e => e.status === 'Present').length / dailyAttendanceList.length) * 100) : 0} 
+                label={`Present (${dailyAttendanceList.filter(e => e.status === 'Present' || e.status === 'Late').length}/${dailyAttendanceList.length})`} 
+                percentage={dailyAttendanceList.length > 0 ? Math.round((dailyAttendanceList.filter(e => e.status === 'Present' || e.status === 'Late').length / dailyAttendanceList.length) * 100) : 0} 
                 color="var(--app-success-color)" 
                 isClickable={true}
                 isActive={statusFilter === 'Present'}

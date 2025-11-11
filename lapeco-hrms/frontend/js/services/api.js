@@ -266,6 +266,7 @@ export const performanceAPI = {
   getEvaluationTrackerData: () => api.get('/performance/tracker'),
   createPeriod: (data) => api.post('/performance/periods', data),
   updatePeriod: (id, data) => api.put(`/performance/periods/${id}`, data),
+  deletePeriod: (id) => api.delete(`/performance/periods/${id}`),
   submitResponse: (evaluationId, data) => api.post(`/performance/evaluations/${evaluationId}/responses`, data),
   updateResponse: (responseId, data) => api.put(`/performance/evaluation-responses/${responseId}`, data),
   getTeamMembersToEvaluate: () => api.get('/performance/team-members-to-evaluate'),

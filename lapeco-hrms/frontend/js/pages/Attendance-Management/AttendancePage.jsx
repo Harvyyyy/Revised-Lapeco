@@ -193,7 +193,12 @@ const AttendancePage = () => {
       list = list.filter(emp => emp.position === positionFilter);
     }
     if (statusFilter) {
-      list = list.filter(emp => emp.status === statusFilter);
+      // Treat 'Present' filter as Present OR Late
+      if (statusFilter === 'Present') {
+        list = list.filter(emp => emp.status === 'Present' || emp.status === 'Late');
+      } else {
+        list = list.filter(emp => emp.status === statusFilter);
+      }
     }
     
     list.sort((a, b) => {
@@ -300,7 +305,12 @@ const AttendancePage = () => {
       }
       
       if (employeeStatusFilter) {
-        filteredRecords = filteredRecords.filter(record => record.status === employeeStatusFilter);
+        // Treat 'Present' filter as Present OR Late
+        if (employeeStatusFilter === 'Present') {
+          filteredRecords = filteredRecords.filter(record => record.status === 'Present' || record.status === 'Late');
+        } else {
+          filteredRecords = filteredRecords.filter(record => record.status === employeeStatusFilter);
+        }
       }
       
       const sortedRecords = filteredRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -333,7 +343,8 @@ const AttendancePage = () => {
       }
       
       const totalScheduled = statsRecords.length;
-      const totalPresent = statsRecords.filter(r => r.status === 'Present').length;
+      // Treat Late as present for totals and percentage
+      const totalPresent = statsRecords.filter(r => r.status === 'Present' || r.status === 'Late').length;
       const totalLate = statsRecords.filter(r => r.status === 'Late').length;
       const totalAbsent = statsRecords.filter(r => r.status === 'Absent').length;
       

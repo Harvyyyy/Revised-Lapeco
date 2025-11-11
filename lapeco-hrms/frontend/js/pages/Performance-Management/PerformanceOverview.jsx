@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Bar } from 'react-chartjs-2';
 import ScoreIndicator from './ScoreIndicator';
 import placeholderAvatar from '../../assets/placeholder-profile.jpg';
@@ -15,65 +15,13 @@ const PerformanceOverview = ({
 }) => {
   const [overviewData, setOverviewData] = useState([]);
   const [isLoadingOverview, setIsLoadingOverview] = useState(false);
-  const [historySearchTerm, setHistorySearchTerm] = useState('');
-  const [historySortConfig, setHistorySortConfig] = useState({ key: 'evaluationDate', direction: 'descending' });
+  const [evaluationPeriods, setEvaluationPeriods] = useState([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState('all');
+  const [isLoadingPeriodData, setIsLoadingPeriodData] = useState(false);
+  const [periodEvaluations, setPeriodEvaluations] = useState([]);
 
   const positionMap = useMemo(() => new Map(positions.map(p => [p.id, p.title])), [positions]);
 
-  const evaluationHistory = useMemo(() => {
-    if (overviewData.length === 0) return [];
-
-    const historyByEmployee = evaluations.reduce((acc, evaluationEntry) => {
-      if (!acc[evaluationEntry.employeeId]) {
-        acc[evaluationEntry.employeeId] = [];
-      }
-      acc[evaluationEntry.employeeId].push(evaluationEntry);
-      return acc;
-    }, {});
-
-    let filteredData = overviewData.map(emp => {
-      const hasRawScore = typeof emp.combinedAverageScore === 'number' && !Number.isNaN(emp.combinedAverageScore);
-      const percentageScore = hasRawScore ? emp.combinedAverageScore * 20 : null;
-      const employeeHistoryEntries = historyByEmployee[emp.id] || [];
-      return {
-        ...emp,
-        employeeId: emp.id,
-        rawAverageScore: emp.combinedAverageScore,
-        combinedAverageScore: percentageScore,
-        history: employeeHistoryEntries,
-      };
-    });
-
-    if (historySearchTerm) {
-      const lowerSearch = historySearchTerm.toLowerCase();
-      filteredData = filteredData.filter(emp => 
-        emp.name.toLowerCase().includes(lowerSearch)
-      );
-    }
-
-    filteredData.sort((a, b) => {
-      const key = historySortConfig.key;
-      const direction = historySortConfig.direction === 'ascending' ? 1 : -1;
-      let valA, valB;
-
-      if (key === 'employeeName') {
-        valA = a.name;
-        valB = b.name;
-      } else if (key === 'overallScore') {
-        valA = a.combinedAverageScore || 0;
-        valB = b.combinedAverageScore || 0;
-      } else {
-        valA = a[key];
-        valB = b[key];
-      }
-
-      if (typeof valA === 'string') return valA.localeCompare(valB) * direction;
-      if (typeof valA === 'number') return (valA - valB) * direction;
-      return 0;
-    });
-
-    return filteredData;
-  }, [overviewData, historySearchTerm, historySortConfig, evaluations]);
 
   const overviewStats = useMemo(() => {
     if (overviewData.length === 0) return { totalEmployees: 0, avgScore: 0, employeesWithScores: 0 };
@@ -102,16 +50,101 @@ const PerformanceOverview = ({
     return brackets;
   }, [overviewData]);
 
+  const periodAwarePerformanceBrackets = useMemo(() => {
+    const brackets = { 'Needs Improvement': 0, 'Meets Expectations': 0, 'Outstanding': 0 };
+
+    const bucketByScore = (scorePct) => {
+      if (typeof scorePct !== 'number' || Number.isNaN(scorePct)) return;
+      if (scorePct < 70) brackets['Needs Improvement']++;
+      else if (scorePct < 90) brackets['Meets Expectations']++;
+      else brackets['Outstanding']++;
+    };
+
+    if (selectedPeriodId && selectedPeriodId !== 'all' && periodEvaluations.length > 0) {
+      periodEvaluations.forEach(ev => {
+        let avg = ev?.averageScore;
+        if (avg === null || avg === undefined) {
+          const resp = Array.isArray(ev.responses) ? ev.responses : [];
+          if (resp.length) {
+            const sum = resp.reduce((s, r) => s + (Number(r.overallScore) || 0), 0);
+            avg = sum / resp.length;
+          }
+        }
+        const pct = typeof avg === 'number' ? avg * 20 : null;
+        bucketByScore(pct);
+      });
+    } else {
+      Object.entries(overviewPerformanceBrackets).forEach(([label, count]) => {
+        brackets[label] = count;
+      });
+    }
+    return brackets;
+  }, [overviewPerformanceBrackets, selectedPeriodId, periodEvaluations]);
+
   const chartTextColor = theme === 'dark' ? '#adb5bd' : '#6c757d';
   const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
 
   const overviewChartData = {
-    labels: Object.keys(overviewPerformanceBrackets),
+    labels: Object.keys(periodAwarePerformanceBrackets),
     datasets: [{
       label: 'Number of Employees',
-      data: Object.values(overviewPerformanceBrackets),
+      data: Object.values(periodAwarePerformanceBrackets),
       backgroundColor: ['#dc3545', '#ffc107', '#198754'],
     }],
+  };
+
+  const normalizePeriod = useCallback((period = {}) => ({
+    id: period.id,
+    name: period.name || '',
+    evaluationStart: period.evaluationStart || period.evaluation_start || '',
+    evaluationEnd: period.evaluationEnd || period.evaluation_end || '',
+    openDate: period.openDate || period.open_date || period.activationStart || '',
+    closeDate: period.closeDate || period.close_date || period.activationEnd || '',
+    status: period.status,
+  }), []);
+
+  const refreshPeriods = async () => {
+    try {
+      const response = await performanceAPI.getEvaluationPeriods();
+      const payload = response.data || {};
+      const periods = Array.isArray(payload.evaluationPeriods) ? payload.evaluationPeriods.map(normalizePeriod) : [];
+      setEvaluationPeriods(periods);
+    } catch (error) {
+      console.error('Failed to load evaluation periods', error);
+    }
+  };
+
+  const refreshPeriodEvaluations = async (periodId) => {
+    if (!periodId || periodId === 'all') {
+      setPeriodEvaluations([]);
+      return;
+    }
+    try {
+      setIsLoadingPeriodData(true);
+      const response = await performanceAPI.getPeriodicEvaluations(periodId);
+      const payload = response.data || {};
+      const fetchedPeriod = payload.period || {};
+      const normalizedEvaluations = Array.isArray(fetchedPeriod.evaluations)
+        ? fetchedPeriod.evaluations.map(ev => ({
+            id: ev.id,
+            employeeId: ev.employeeId,
+            averageScore: ev.averageScore,
+            responsesCount: ev.responsesCount ?? (Array.isArray(ev.responses) ? ev.responses.length : 0),
+            responses: Array.isArray(ev.responses)
+              ? ev.responses.map(resp => ({
+                  overallScore: resp.overallScore,
+                }))
+              : [],
+          }))
+        : [];
+      setPeriodEvaluations(normalizedEvaluations);
+    } catch (error) {
+      console.error('Failed to load evaluations for selected period', error);
+      setPeriodEvaluations([]);
+      onShowToast?.({ message: 'Failed to load period evaluations.', type: 'error' });
+    } finally {
+      setIsLoadingPeriodData(false);
+    }
   };
 
   const chartOptions = {
@@ -133,18 +166,6 @@ const PerformanceOverview = ({
     },
   };
 
-  const getSortIcon = (key) => {
-    if (historySortConfig.key !== key) return <i className="bi bi-arrow-down-up sort-icon ms-1 opacity-25"></i>;
-    return historySortConfig.direction === 'ascending' ? <i className="bi bi-sort-up sort-icon active ms-1"></i> : <i className="bi bi-sort-down sort-icon active ms-1"></i>;
-  };
-
-  const requestHistorySort = (key) => {
-    let direction = 'ascending';
-    if (historySortConfig.key === key && historySortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setHistorySortConfig({ key, direction });
-  };
 
   const refreshOverview = async () => {
     try {
@@ -166,6 +187,14 @@ const PerformanceOverview = ({
       refreshOverview();
     }
   }, []);
+
+  useEffect(() => {
+    refreshPeriods();
+  }, []);
+
+  useEffect(() => {
+    refreshPeriodEvaluations(selectedPeriodId);
+  }, [selectedPeriodId]);
 
   return (
     <div className="performance-dashboard-layout-revised">
@@ -204,100 +233,40 @@ const PerformanceOverview = ({
 
           <div className="analysis-grid-full-width">
             <div className="card">
-              <div className="card-header">
-                <h6><i className="bi bi-bar-chart-line-fill me-2"></i>Performance Distribution</h6>
+              <div className="card-header d-flex justify-content-between align-items-center">
+                <h6 className="mb-0"><i className="bi bi-bar-chart-line-fill me-2"></i>Performance Distribution</h6>
+                <div className="d-flex align-items-center gap-2">
+                  <label htmlFor="periodSelect" className="small text-muted">Select Period</label>
+                  <select
+                    id="periodSelect"
+                    className="form-select form-select-sm"
+                    value={selectedPeriodId}
+                    onChange={(e) => setSelectedPeriodId(e.target.value)}
+                    style={{ maxWidth: '240px' }}
+                  >
+                    <option value="all">All Periods</option>
+                    {evaluationPeriods.map(p => (
+                      <option key={p.id} value={String(p.id)}>{p.name || `${p.evaluationStart} - ${p.evaluationEnd}`}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="card-body" style={{ height: '280px' }}>
-                <Bar data={overviewChartData} options={chartOptions} />
+                {isLoadingPeriodData ? (
+                  <div className="d-flex align-items-center justify-content-center h-100">
+                    <div className="spinner-border" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <Bar data={overviewChartData} options={chartOptions} />
+                )}
               </div>
             </div>
           </div>
         </>
       )}
 
-      <div className="card dashboard-history-table">
-        <div className="history-table-controls">
-          <h6><i className="bi bi-clock-history me-2"></i>Evaluation History</h6>
-          <div className='d-flex align-items-center gap-2'>
-            <button className="btn btn-outline-secondary text-nowrap" onClick={onGenerateReport}>
-              <i className="bi bi-file-earmark-pdf-fill me-1"></i>Generate Report
-            </button>
-            <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-search"></i></span>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="Search by name..." 
-                value={historySearchTerm} 
-                onChange={e => setHistorySearchTerm(e.target.value)} 
-              />
-            </div>
-          </div>
-        </div>
-        <div className="table-responsive">
-          <table className="table data-table mb-0 align-middle">
-            <thead>
-              <tr>
-                <th className="sortable" onClick={() => requestHistorySort('employeeName')}>
-                  Employee {getSortIcon('employeeName')}
-                </th>
-                <th className="sortable" onClick={() => requestHistorySort('overallScore')}>
-                  Score {getSortIcon('overallScore')}
-                </th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evaluationHistory.length > 0 ? evaluationHistory.map(emp => {
-                const hasScore = typeof emp.combinedAverageScore === 'number' && !Number.isNaN(emp.combinedAverageScore);
-
-                return (
-                  <tr key={emp.id}>
-                    <td>
-                      <div className='d-flex align-items-center'>
-                        <img 
-                          src={emp.profilePictureUrl || placeholderAvatar} 
-                          alt={emp.name} 
-                          size='sm' 
-                          className='avatar-table me-2' 
-                          onError={(e) => {
-                            e.target.src = placeholderAvatar;
-                          }}
-                        />
-                        <div>
-                          <div className='fw-bold'>{emp.name}</div>
-                          <small className='text-muted'>{emp.position}</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      {hasScore ? (
-                        <ScoreIndicator score={emp.combinedAverageScore} />
-                      ) : (
-                        <span className="text-muted">No evaluation found for this employee.</span>
-                      )}
-                    </td>
-                    <td>
-                      <button 
-                        className="btn btn-sm btn-outline-secondary" 
-                        onClick={() => onViewEvaluation(emp)}
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan="3" className="text-center p-4">
-                    No employees found for the selected criteria.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 };

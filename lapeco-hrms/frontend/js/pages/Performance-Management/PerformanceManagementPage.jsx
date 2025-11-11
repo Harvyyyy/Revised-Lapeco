@@ -11,6 +11,7 @@ import NotificationToast from '../../common/ToastNotification';
 
 import EvaluationTracker from './EvaluationTracker';
 import PerformanceOverview from './PerformanceOverview';
+import EvaluationHistory from './EvaluationHistory';
 import ManagePeriods from './ManagePeriods';
 import { performanceAPI } from '../../services/api';
 
@@ -161,8 +162,29 @@ const PerformanceManagementPage = ({
 
   const handleGenerateReport = () => setShowReportConfigModal(true);
 
-  const handleRunReport = (params) => {
-    generateReport('performance_summary', { periodId: params.periodId }, { employees, positions, evaluations, evaluationPeriods });
+  const handleRunReport = async (params) => {
+    const periodId = params?.periodId || 'all';
+    let reportEmployees = employees;
+    let reportEvaluations = evaluations;
+
+    try {
+      // For 'All Time', prefer overview scores from API
+      if (periodId === 'all') {
+        const resp = await performanceAPI.getOverview();
+        reportEmployees = resp?.data?.employees || employees;
+      } else {
+        // For a specific period, fetch its evaluations directly
+        const resp = await performanceAPI.getPeriodicEvaluations(periodId);
+        const payload = resp?.data || {};
+        const fetchedPeriod = payload.period || {};
+        reportEvaluations = Array.isArray(fetchedPeriod.evaluations) ? fetchedPeriod.evaluations : [];
+      }
+    } catch (error) {
+      console.error('Failed to prepare data for performance report', error);
+      showToast({ message: 'Failed to prepare report data.', type: 'error' });
+    }
+
+    generateReport('performance_summary', { periodId }, { employees: reportEmployees, positions, evaluations: reportEvaluations, evaluationPeriods });
     setShowReportConfigModal(false);
     setShowReportPreview(true);
   };
@@ -218,41 +240,58 @@ const PerformanceManagementPage = ({
 
   return (
     <div className="container-fluid p-0 page-module-container">
-      <header className="page-header mb-4">
+      <header className="page-header mb-3">
         <h1 className="page-main-title">Performance Management</h1>
       </header>
-      
-      <ul className="nav nav-tabs performance-nav-tabs mb-4">
-        <li className="nav-item">
-          <button 
-            className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('overview')}
-          >
-            Overview
-          </button>
-        </li>            
-        <li className="nav-item">
-          <button 
-            className={`nav-link ${activeTab === 'tracker' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('tracker')}
-          >
-            Evaluation Tracker
-            {totalPendingCount > 0 && (
-              <span className="badge rounded-pill bg-warning text-dark ms-2">
-                {totalPendingCount}
-              </span>
-            )}
-          </button>
-        </li>
-        <li className="nav-item">
-          <button 
-            className={`nav-link ${activeTab === 'periods' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('periods')}
-          >
-            Manage Periods
-          </button>
-        </li>
-      </ul>
+
+      <div className="d-flex align-items-center justify-content-between mb-4">
+        <ul className="nav nav-tabs performance-nav-tabs mb-0">
+          <li className="nav-item">
+            <button 
+              className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('overview')}
+            >
+              Overview
+            </button>
+          </li>            
+          <li className="nav-item">
+            <button 
+              className={`nav-link ${activeTab === 'tracker' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('tracker')}
+            >
+              Evaluation Tracker
+              {totalPendingCount > 0 && (
+                <span className="badge rounded-pill bg-warning text-dark ms-2">
+                  {totalPendingCount}
+                </span>
+              )}
+            </button>
+          </li>
+          <li className="nav-item">
+            <button 
+              className={`nav-link ${activeTab === 'history' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('history')}
+            >
+              Evaluation History
+            </button>
+          </li>
+          <li className="nav-item">
+            <button 
+              className={`nav-link ${activeTab === 'periods' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('periods')}
+            >
+              Manage Periods
+            </button>
+          </li>
+        </ul>
+        <button
+          className="btn btn-outline-secondary text-nowrap"
+          onClick={handleGenerateReport}
+        >
+          <i className="bi bi-file-earmark-pdf-fill me-2"></i>
+          Generate Report
+        </button>
+      </div>
 
       <div className="performance-content">
         {activeTab === 'overview' && (
@@ -282,6 +321,18 @@ const PerformanceManagementPage = ({
                 setViewingEmployeeId(evalData.employeeId || evalData.id || null);
               }
             }}
+          />
+        )}
+        {activeTab === 'history' && (
+          <EvaluationHistory
+            employees={employees}
+            positions={positions}
+            evaluations={evaluations}
+            evaluationPeriods={evaluationPeriods}
+            theme={theme}
+            onGenerateReport={handleGenerateReport}
+            onViewEvaluation={handleViewEvaluation}
+            onShowToast={showToast}
           />
         )}
         

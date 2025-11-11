@@ -49,6 +49,7 @@ const ContributionsManagementPage = ({ employees, positions, payrolls, theme }) 
     isOpen: false, title: '', body: '', onConfirm: () => {},
   });
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [totalsByType, setTotalsByType] = useState({ sss: 0, philhealth: 0, pagibig: 0, tin: 0 });
 
   const uniqueYears = useMemo(() => {
     const years = new Set((payrolls || []).map(run => new Date(run.cutOff.split(' to ')[0]).getFullYear()));
@@ -170,23 +171,66 @@ const ContributionsManagementPage = ({ employees, positions, payrolls, theme }) 
     
     return !!finalized;
   }, [selectedMonth, selectedYear, activeReport, archivedReports]);
-
-
-  // Calculate stats from current rows
-  const stats = useMemo(() => {
-    if (!rows.length || isCurrentMonthArchived) {
-      return { sss: 0, philhealth: 0, pagibig: 0, tin: 0 };
-    }
-    
-    const calculateTotal = (key = 'totalContribution') => rows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
-    
-    return {
-      sss: activeReport === 'sss' ? calculateTotal() : 0,
-      philhealth: activeReport === 'philhealth' ? calculateTotal() : 0,
-      pagibig: activeReport === 'pagibig' ? calculateTotal() : 0,
-      tin: activeReport === 'tin' ? calculateTotal('taxWithheld') : 0,
+  
+  // Fetch totals for all contribution types for the selected month/year
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAllTotals = async () => {
+      try {
+        const types = ['sss', 'philhealth', 'pagibig', 'tin'];
+        const responses = await Promise.all(
+          types.map(type => contributionAPI.getMonthlyContributions({ year: selectedYear, month: selectedMonth, type }))
+        );
+        const getRows = (i) => responses[i]?.data?.data || [];
+        const sum = (arr, key = 'totalContribution') => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+        const newTotals = {
+          sss: sum(getRows(0)),
+          philhealth: sum(getRows(1)),
+          pagibig: sum(getRows(2)),
+          tin: sum(getRows(3), 'taxWithheld'),
+        };
+        if (!cancelled) setTotalsByType(newTotals);
+      } catch (err) {
+        // Fallback: compute from archived reports if API fails or returns nothing
+        const monthIndex = selectedMonth + 1;
+        const findReportRows = (typeUpper) => {
+          const report = archivedReports.find(r => r.type === typeUpper && r.year === selectedYear && r.month === monthIndex);
+          return report ? (report.rows || []) : [];
+        };
+        const sumRows = (arr, key = 'totalContribution') => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+        const newTotals = {
+          sss: sumRows(findReportRows('SSS')),
+          philhealth: sumRows(findReportRows('PHILHEALTH')),
+          pagibig: sumRows(findReportRows('PAGIBIG')),
+          tin: sumRows(findReportRows('TIN'), 'taxWithheld'),
+        };
+        setTotalsByType(newTotals);
+      }
     };
-  }, [rows, activeReport, isCurrentMonthArchived]);
+    fetchAllTotals();
+    return () => { cancelled = true; };
+  }, [selectedYear, selectedMonth, archivedReports]);
+
+  // Live-update the total for the currently active report when rows change
+  useEffect(() => {
+    const calc = (key = 'totalContribution') => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+    setTotalsByType(prev => {
+      const next = { ...prev };
+      if (activeReport === 'tin') {
+        next.tin = calc('taxWithheld');
+      } else if (activeReport === 'sss') {
+        next.sss = calc();
+      } else if (activeReport === 'philhealth') {
+        next.philhealth = calc();
+      } else if (activeReport === 'pagibig') {
+        next.pagibig = calc();
+      }
+      return next;
+    });
+  }, [rows, activeReport]);
+
+  // Stats used by the cards are the totals across types
+  const stats = totalsByType;
   
   const handleExportPdf = () => {
     // TODO: Implement PDF export

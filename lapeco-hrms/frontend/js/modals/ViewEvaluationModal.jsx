@@ -203,7 +203,11 @@ const ViewEvaluationModal = ({
         const groupedByPeriod = historyEntries.reduce((acc, ev) => {
             const periodKey = `${ev.periodStart}_${ev.periodEnd}`;
             if (!acc[periodKey]) {
-                acc[periodKey] = { periodStart: ev.periodStart, periodEnd: ev.periodEnd, evals: [] };
+                acc[periodKey] = { periodStart: ev.periodStart, periodEnd: ev.periodEnd, periodName: ev.periodName, evals: [] };
+            }
+            // Prefer a non-empty periodName if encountered later
+            if (!acc[periodKey].periodName && ev.periodName) {
+                acc[periodKey].periodName = ev.periodName;
             }
             acc[periodKey].evals.push(ev);
             return acc;
@@ -476,7 +480,8 @@ const ViewEvaluationModal = ({
                                     <div className="evaluator-info">
                                         <i className="bi bi-calendar-range fs-4 text-primary"></i>
                                         <div>
-                                            <div className="evaluator-name">{period.periodStart} to {period.periodEnd}</div>
+                                            <div className="evaluator-name">{period.periodName || 'Evaluation Period'}</div>
+                                            <div className="text-muted small">{period.periodStart} to {period.periodEnd}</div>
                                             <div className="evaluator-position">{responseCount} submission(s)</div>
                                         </div>
                                     </div>
@@ -500,7 +505,7 @@ const ViewEvaluationModal = ({
                 <div className="header-info">
                     <h5 className="modal-title">Evaluations for {subjectEmployee?.name || 'Employee'}</h5>
                     {currentPeriodContext ? (
-                        <p className="text-muted mb-0">Period: {currentPeriodContext.periodStart} to {currentPeriodContext.periodEnd}</p>
+                        <p className="text-muted mb-0">Period: {(currentPeriodContext.periodName ? currentPeriodContext.periodName + ' — ' : '')}{currentPeriodContext.periodStart} to {currentPeriodContext.periodEnd}</p>
                     ) : (
                         <p className="text-muted mb-0">Select a period to view evaluator responses.</p>
                     )}
@@ -584,7 +589,7 @@ const ViewEvaluationModal = ({
                     <ScoreDonutChart score={selectedEvaluation.overallScore} />
                     <div className="header-info">
                         <h5 className="modal-title">{subjectEmployee?.name || 'Employee'}</h5>
-                        <p className="text-muted mb-0">Period: {selectedEvaluation.periodStart} to {selectedEvaluation.periodEnd}</p>
+                        <p className="text-muted mb-0">Period: {(selectedEvaluation.periodName ? selectedEvaluation.periodName + ' — ' : '')}{selectedEvaluation.periodStart} to {selectedEvaluation.periodEnd}</p>
                         {evaluator && (
                             <div className="evaluator-info d-flex align-items-center gap-2">
                                 <img src={evaluator.imageUrl || placeholderAvatar} alt={evaluator.name} className="evaluator-avatar" />
