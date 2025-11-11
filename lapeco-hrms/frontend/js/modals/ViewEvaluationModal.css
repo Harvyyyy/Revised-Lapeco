@@ -93,6 +93,8 @@
 .view-evaluation-modal .modal-body.evaluator-list-body {
     background-color: var(--bg-primary);
     padding: 1.5rem;
+    max-height: 65vh;
+    overflow-y: auto;
 }
 .evaluator-list {
     display: flex;

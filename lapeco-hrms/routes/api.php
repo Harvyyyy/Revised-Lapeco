@@ -227,6 +227,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     // Period management - HR/Admin only
     Route::middleware(['role.access:performance,store'])->post('/performance/periods', [PerformanceController::class, 'storePeriod']);
     Route::middleware(['role.access:performance,update'])->put('/performance/periods/{period}', [PerformanceController::class, 'updatePeriod']);
+    Route::middleware(['role.access:performance,destroy'])->delete('/performance/periods/{period}', [PerformanceController::class, 'deletePeriod']);
     Route::middleware(['role.access:performance,store'])->post('/performance/evaluations', [PerformanceController::class, 'storeEvaluation']);
     Route::middleware(['role.access:performance,update'])->put('/performance/evaluations/{evaluation}', [PerformanceController::class, 'updateEvaluation']);
     Route::middleware(['role.access:performance,store'])->post('/performance/reminders', [PerformanceController::class, 'sendReminders']);

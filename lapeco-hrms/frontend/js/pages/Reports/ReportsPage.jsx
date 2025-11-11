@@ -74,7 +74,7 @@ const ReportsPage = (props) => {
     const fetchData = async () => {
       try {
         setIsInitialLoading(true);
-        const [employeesRes, positionsRes, resignationsRes, terminationsRes, programsRes, enrollmentsRes, periodsRes, leavesRes] = await Promise.all([
+        const [employeesRes, positionsRes, resignationsRes, terminationsRes, programsRes, enrollmentsRes, periodsRes, leavesRes, attendanceEmployeesRes] = await Promise.all([
           employeeAPI.getAll(),
           positionAPI.getAll(),
           resignationAPI.getAll(),
@@ -83,11 +83,13 @@ const ReportsPage = (props) => {
           trainingAPI.getEnrollments(),
           performanceAPI.getEvaluationPeriods(),
           leaveAPI.getAll(),
+          attendanceAPI.getEmployeeNameID(),
         ]);
         
         // Normalize the data similar to EmployeeDataPage
         const empData = Array.isArray(employeesRes.data) ? employeesRes.data : (employeesRes.data?.data || []);
         const posData = Array.isArray(positionsRes.data) ? positionsRes.data : (positionsRes.data?.data || []);
+        const attendanceData = Array.isArray(attendanceEmployeesRes?.data) ? attendanceEmployeesRes.data : (attendanceEmployeesRes?.data?.data || []);
         
         // Normalize positions to include all necessary fields
         const normalizedPositions = posData.map(p => ({ 
@@ -114,12 +116,40 @@ const ReportsPage = (props) => {
           role: e.role,
           status: normalizeAccountStatus(e.account_status ?? e.status ?? e.employment_status)
         }));
-        
-        // Keep all employees for offboarding reports
-        setAllEmployees(normalizedEmployees);
+
+        // Enrich employees with attendance feed (includes inactive and position string)
+        const attMap = new Map(attendanceData.map(a => [String(a.id), { id: a.id, name: a.name, position: a.position || null }]));
+        const enrichedEmployees = normalizedEmployees.map(emp => {
+          const att = attMap.get(String(emp.id));
+          if (!att) return emp;
+          const needsPosition = !emp.position || emp.position === 'Unassigned' || emp.position === '';
+          return {
+            ...emp,
+            position: needsPosition ? (att.position || emp.position || null) : emp.position,
+          };
+        });
+        // Add attendance-only employees missing from main list
+        attMap.forEach((att, idStr) => {
+          const exists = enrichedEmployees.some(e => String(e.id) === idStr);
+          if (!exists) {
+            enrichedEmployees.push({
+              id: att.id,
+              name: att.name || 'Employee',
+              email: null,
+              positionId: null,
+              position: att.position || null,
+              joiningDate: null,
+              role: null,
+              status: 'Active'
+            });
+          }
+        });
+
+        // Keep enriched list for offboarding and name/position resolution
+        setAllEmployees(enrichedEmployees);
         
         // Filter only non-offboarded employees for most reports
-        const activeEmployees = normalizedEmployees.filter(emp => {
+        const activeEmployees = enrichedEmployees.filter(emp => {
           const s = (emp.status || '').toString().trim().toLowerCase();
           return s !== 'terminated' && s !== 'resigned';
         });
@@ -479,6 +509,41 @@ const ReportsPage = (props) => {
         ...dataSources,
         evaluationPeriods
       };
+
+      try {
+        setIsFetchingData(true);
+        if (String(finalParams.periodId) === 'all') {
+          // Use performance overview when "All Time" is selected so we have scores
+          const resp = await performanceAPI.getOverview();
+          const overviewEmployees = resp?.data?.employees || [];
+          if (overviewEmployees.length) {
+            dataSources = { ...dataSources, employees: overviewEmployees };
+          }
+          // Also fetch a comprehensive employee list (includes inactive) for evaluator name resolution
+          const allEmpRes = await attendanceAPI.getEmployeeNameID();
+          const allEmployees = Array.isArray(allEmpRes?.data?.data) ? allEmpRes.data.data : (Array.isArray(allEmpRes?.data) ? allEmpRes.data : []);
+          if (allEmployees.length) {
+            dataSources = { ...dataSources, allEmployees };
+          }
+        } else {
+          // Fetch evaluations for the selected period
+          const resp = await performanceAPI.getPeriodicEvaluations(finalParams.periodId);
+          const payload = resp?.data || {};
+          const fetchedPeriod = payload.period || {};
+          const evals = Array.isArray(fetchedPeriod.evaluations) ? fetchedPeriod.evaluations : [];
+          dataSources = { ...dataSources, evaluations: evals };
+          // Also fetch a comprehensive employee list (includes inactive) for evaluator name resolution
+          const allEmpRes = await attendanceAPI.getEmployeeNameID();
+          const allEmployees = Array.isArray(allEmpRes?.data?.data) ? allEmpRes.data.data : (Array.isArray(allEmpRes?.data) ? allEmpRes.data : []);
+          if (allEmployees.length) {
+            dataSources = { ...dataSources, allEmployees };
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load performance data for report:', error);
+      } finally {
+        setIsFetchingData(false);
+      }
     }
     
     if (reportId === 'thirteenth_month_pay') {
