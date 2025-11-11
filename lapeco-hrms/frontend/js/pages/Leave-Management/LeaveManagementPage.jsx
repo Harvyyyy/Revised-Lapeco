@@ -29,6 +29,26 @@ const LeaveManagementPage = () => {
         // Fetch leave requests
         const leaveRes = await leaveAPI.getAll();
         const leaveData = Array.isArray(leaveRes.data) ? leaveRes.data : (leaveRes.data?.data || []);
+        const normalizeMaternity = (md) => {
+          if (!md) return undefined;
+          return {
+            type: md.type ?? md.maternity_type ?? md.application_type,
+            isSoloParent: md.isSoloParent ?? md.is_solo_parent ?? false,
+            deliveryDate: md.deliveryDate ?? md.expectedDeliveryDate ?? md.actualDeliveryDate ?? md.delivery_date ?? md.expected_delivery_date ?? md.actual_delivery_date ?? '',
+            allocationDays: md.allocationDays ?? md.allocation_days ?? 0,
+            medicalDocumentName: md.medicalDocumentName ?? md.medical_document_name ?? null,
+            soloParentDocumentName: md.soloParentDocumentName ?? md.solo_parent_document_name ?? null,
+          };
+        };
+        const normalizePaternity = (pd) => {
+          if (!pd) return undefined;
+          return {
+            childsDob: pd.childsDob ?? pd.childs_dob ?? '',
+            isEligiblePaternity: pd.isEligiblePaternity ?? pd.is_eligible_paternity ?? false,
+            marriageCertName: pd.marriageCertName ?? pd.marriage_cert_name ?? null,
+            birthCertName: pd.birthCertName ?? pd.birth_cert_name ?? pd.medical_cert_name ?? null,
+          };
+        };
         
         // Map API response to UI structure
         const mappedLeaves = leaveData.map(l => ({
@@ -42,6 +62,11 @@ const LeaveManagementPage = () => {
           days: l.days,
           status: l.status,
           reason: l.reason,
+          documentName: l.documentName ?? l.document_name ?? null,
+          documentPath: l.documentPath ?? l.document_path ?? null,
+          extensionStatus: l.extensionStatus ?? l.extension_status ?? undefined,
+          maternityDetails: normalizeMaternity(l.maternityDetails ?? l.maternity_details),
+          paternityDetails: normalizePaternity(l.paternityDetails ?? l.paternity_details),
         }));
         
         // Fetch employees
@@ -83,6 +108,11 @@ const LeaveManagementPage = () => {
           days: l.days,
           status: l.status,
           reason: l.reason,
+          documentName: l.documentName ?? l.document_name ?? null,
+          documentPath: l.documentPath ?? l.document_path ?? null,
+          extensionStatus: l.extensionStatus ?? l.extension_status ?? undefined,
+          maternityDetails: (typeof l.maternityDetails !== 'undefined' || typeof l.maternity_details !== 'undefined') ? normalizeMaternity(l.maternityDetails ?? l.maternity_details) : undefined,
+          paternityDetails: (typeof l.paternityDetails !== 'undefined' || typeof l.paternity_details !== 'undefined') ? normalizePaternity(l.paternityDetails ?? l.paternity_details) : undefined,
         }));
         setLeaveRequests(mapped);
       } catch (err) {
@@ -108,6 +138,11 @@ const LeaveManagementPage = () => {
           days: l.days,
           status: l.status,
           reason: l.reason,
+          documentName: l.documentName ?? l.document_name ?? null,
+          documentPath: l.documentPath ?? l.document_path ?? null,
+          extensionStatus: l.extensionStatus ?? l.extension_status ?? undefined,
+          maternityDetails: (typeof l.maternityDetails !== 'undefined' || typeof l.maternity_details !== 'undefined') ? normalizeMaternity(l.maternityDetails ?? l.maternity_details) : undefined,
+          paternityDetails: (typeof l.paternityDetails !== 'undefined' || typeof l.paternity_details !== 'undefined') ? normalizePaternity(l.paternityDetails ?? l.paternity_details) : undefined,
         }));
         setLeaveRequests(mapped);
       } catch (err) {

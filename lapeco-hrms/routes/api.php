@@ -159,6 +159,8 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::middleware(['role.access:leave,store'])->post('/leaves', [LeaveController::class, 'store']);
     Route::middleware(['role.access:leave,update'])->put('/leaves/{leave}', [LeaveController::class, 'update']);
     Route::middleware(['role.access:leave,destroy'])->delete('/leaves/{leave}', [LeaveController::class, 'destroy']);
+    // Secure download/preview of attached document for a leave request
+    Route::middleware(['role.access:leave,view'])->get('/leaves/{leave}/attachment', [LeaveController::class, 'downloadAttachment']);
     
     // Leave Credits Management
     Route::middleware(['role.access:leave,index'])->get('/leave-credits/all', [LeaveController::class, 'getAllLeaveCredits']);

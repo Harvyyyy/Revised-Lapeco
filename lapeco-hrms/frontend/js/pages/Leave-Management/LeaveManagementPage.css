@@ -223,3 +223,34 @@
     opacity: 1; 
     color: var(--app-success-color); 
 }
+
+/* === Leave Credits Table Enhancements (no progress bars) === */
+.leave-credits-table .remaining-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 12px;
+}
+.leave-credits-table .balance-summary {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.dark-theme .leave-credits-table .remaining-badge {
+    background-color: var(--bg-tertiary);
+}
+.leave-credits-table tbody tr:hover {
+    background-color: var(--bg-secondary);
+}
+
+/* Equal spacing across columns */
+.leave-credits-table {
+    table-layout: fixed;
+    width: 100%;
+}
+.leave-credits-table th, .leave-credits-table td {
+    padding: 0.75rem 1rem;
+}

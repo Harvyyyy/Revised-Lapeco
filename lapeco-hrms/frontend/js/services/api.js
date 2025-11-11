@@ -139,9 +139,30 @@ export const scheduleAPI = {
 // Leave API calls
 export const leaveAPI = {
   getAll: () => api.get('/leaves'),
-  create: (data) => api.post('/leaves', data),
+  create: (data) => {
+    // Convert to FormData if any file field is present
+    const fileKeys = ['attachment', 'medicalDocument', 'soloParentDocument', 'marriageCert', 'birthCert'];
+    const hasAnyFile = !!data && fileKeys.some(k => (data[k] instanceof File) || (data[k] instanceof Blob));
+    if (hasAnyFile) {
+      const formData = new FormData();
+      Object.keys(data).forEach(key => {
+        const value = data[key];
+        if (value === null || value === undefined || value === '') return;
+        // Stringify plain objects to preserve JSON structure
+        if (typeof value === 'object' && !(value instanceof File) && !(value instanceof Blob)) {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, value);
+        }
+      });
+      return api.post('/leaves', formData);
+    }
+    return api.post('/leaves', data);
+  },
   update: (id, data) => api.put(`/leaves/${id}`, data),
   delete: (id) => api.delete(`/leaves/${id}`),
+  // Download/preview the main attachment for a leave request
+  downloadAttachment: (leaveId) => api.get(`/leaves/${leaveId}/attachment`, { responseType: 'blob' }),
   getAllLeaveCredits: () => api.get('/leave-credits/all'),
   getLeaveCredits: (userId) => api.get(`/leave-credits/${userId}`),
   updateLeaveCredits: (userId, data) => api.put(`/leave-credits/${userId}`, data),

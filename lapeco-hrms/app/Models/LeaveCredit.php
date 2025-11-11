@@ -38,11 +38,8 @@ class LeaveCredit extends Model
      */
     public function getRemainingCreditsAttribute()
     {
-        // If total_credits is 0, it means unlimited
-        if ($this->total_credits === 0) {
-            return 'Unlimited';
-        }
-        
+        // Remaining credits are the difference between total and used.
+        // A value of 0 means the employee cannot request paid leave days.
         return max(0, $this->total_credits - $this->used_credits);
     }
 
@@ -51,12 +48,9 @@ class LeaveCredit extends Model
      */
     public function hasEnoughCredits($requestedDays)
     {
-        // If total_credits is 0, it means unlimited
-        if ($this->total_credits === 0) {
-            return true;
-        }
-        
-        return ($this->used_credits + $requestedDays) <= $this->total_credits;
+        // Ensure requested days do not exceed remaining credits.
+        $remaining = max(0, $this->total_credits - $this->used_credits);
+        return $requestedDays <= $remaining;
     }
 
     /**
@@ -103,7 +97,7 @@ class LeaveCredit extends Model
             'leave_type' => $leaveType,
             'year' => $year,
         ], [
-            'total_credits' => 0, // Default to unlimited
+            'total_credits' => 0,
             'used_credits' => 0,
         ]);
     }

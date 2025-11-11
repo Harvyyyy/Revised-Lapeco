@@ -11,12 +11,15 @@ class Leave extends Model
 
     protected $fillable = [
         'user_id', 'type', 'date_from', 'date_to', 'days', 'status', 'reason',
+        'document_name', 'document_path', 'maternity_details', 'paternity_details',
     ];
 
     protected $casts = [
         'date_from' => 'date',
         'date_to' => 'date',
         'days' => 'integer',
+        'maternity_details' => 'array',
+        'paternity_details' => 'array',
     ];
 
     public function user()

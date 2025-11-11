@@ -280,7 +280,7 @@ const HolidayManagementPage = (props) => {
       <div className="holiday-stats-bar">
         <div className={`stat-card ${typeFilter === 'All' ? 'active' : ''}`} onClick={() => setTypeFilter('All')}><div className="stat-icon total"><i className="bi bi-calendar3"></i></div><div><span className="stat-value">{stats.total}</span><span className="stat-label">Total Holidays ({filterYear})</span></div></div>
         <div className={`stat-card ${typeFilter === 'Regular Holiday' ? 'active' : ''}`} onClick={() => setTypeFilter('Regular Holiday')}><div className="stat-icon regular"><i className="bi bi-bookmark-star-fill"></i></div><div><span className="stat-value">{stats.regular}</span><span className="stat-label">Regular Holidays</span></div></div>
-        <div className={`stat-card ${typeFilter === 'Special Non-Working Day' ? 'active' : ''}`} onClick={() => setTypeFilter('Special Non-Working Day')}><div className="stat-icon special"><i className="bi bi-star-fill"></i></div><div><span className="stat-value">{stats.special}</span><span className="stat-label">Special Days</span></div></div>
+        <div className={`stat-card ${typeFilter === 'Special Non-Working Day' ? 'active' : ''}`} onClick={() => setTypeFilter('Special Non-Working Day')}><div className="stat-icon special"><i className="bi bi-star-fill"></i></div><div><span className="stat-value">{stats.special}</span><span className="stat-label">Special Non-Working Holidays</span></div></div>
       </div>
       
       <div className="controls-bar d-flex justify-content-between align-items-center">

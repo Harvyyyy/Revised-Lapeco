@@ -5,6 +5,7 @@ import RequestLeaveModal from '../../modals/RequestLeaveModal';
 import LeaveHistoryModal from '../../modals/LeaveHistoryModal';
 import LeaveRequestCard from './LeaveRequestCard';
 import ToastNotification from '../../common/ToastNotification';
+import ConfirmationModal from '../../modals/ConfirmationModal';
 import { formatDateRange } from '../../utils/dateUtils';
 import './MyLeavePage.css'; 
 
@@ -18,6 +19,7 @@ const MyLeavePage = () => {
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [leaveBalances, setLeaveBalances] = useState({ vacation: 0, sick: 0, emergency: 0 });
+  const [requestToCancel, setRequestToCancel] = useState(null);
 
   // Load user's leave requests and user profile from API
   useEffect(() => {
@@ -105,6 +107,9 @@ const MyLeavePage = () => {
         days: formData.days,
         reason: formData.reason,
       };
+      if (formData.attachment) {
+        payload.attachment = formData.attachment;
+      }
       
       const response = await leaveAPI.create(payload);
       
@@ -212,6 +217,37 @@ const MyLeavePage = () => {
     }
     return sortedRequests.filter(req => req.status === statusFilter);
   }, [leaveRequests, statusFilter]);
+
+  const handleCancelRequest = async () => {
+    if (!requestToCancel) return;
+    try {
+      await leaveAPI.update(requestToCancel.leaveId, { status: 'Canceled' });
+      setToast({ show: true, message: 'Leave request canceled successfully.', type: 'success' });
+
+      // Refresh the list after cancellation
+      const res = await leaveAPI.getAll();
+      const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const mapped = data.map(l => ({
+        leaveId: l.id,
+        empId: l.user?.id ?? l.user_id,
+        name: l.user?.name ?? '',
+        position: l.user?.position?.name ?? '',
+        leaveType: l.type,
+        dateFrom: l.date_from,
+        dateTo: l.date_to,
+        days: l.days,
+        status: l.status,
+        reason: l.reason,
+      }));
+      setLeaveRequests(mapped);
+    } catch (err) {
+      let msg = 'Failed to cancel leave request. Please try again.';
+      if (err.response?.data?.message) msg = err.response.data.message;
+      setToast({ show: true, message: msg, type: 'error' });
+    } finally {
+      setRequestToCancel(null);
+    }
+  };
   
   return (
     <div className="container-fluid p-0 page-module-container">
@@ -301,7 +337,13 @@ const MyLeavePage = () => {
 
             <div className="leave-requests-list mt-4">
                 {filteredRequests.length > 0 ? (
-                    filteredRequests.map(req => <LeaveRequestCard key={req.leaveId} request={req} />)
+                    filteredRequests.map(req => (
+                      <LeaveRequestCard
+                        key={req.leaveId}
+                        request={req}
+                        onCancel={(r) => setRequestToCancel(r)}
+                      />
+                    ))
                 ) : (
                     <div className="text-center p-5 bg-light rounded">
                         <i className="bi bi-inbox fs-1 text-muted mb-3 d-block"></i>
@@ -321,6 +363,20 @@ const MyLeavePage = () => {
           currentUser={currentUser}
         />
       )}
+      <ConfirmationModal
+        show={!!requestToCancel}
+        onClose={() => setRequestToCancel(null)}
+        onConfirm={handleCancelRequest}
+        title="Cancel Leave Request"
+        confirmText="Yes, Cancel"
+        confirmVariant="danger"
+      >
+        <p>
+          Are you sure you want to cancel your pending leave
+          from <strong>{formatDateRange(requestToCancel?.dateFrom, requestToCancel?.dateTo)}</strong>?
+        </p>
+        <p className="text-muted mb-0">This will update the status to Canceled.</p>
+      </ConfirmationModal>
         </>
       )}
 

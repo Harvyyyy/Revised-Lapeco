@@ -7,20 +7,23 @@ const ResetCreditsModal = ({ show, onClose, onConfirm, employees }) => {
     year: new Date().getFullYear()
   });
 
+  // Align with supported credit types used across the app/API
   const leaveTypes = [
     'Vacation Leave',
     'Sick Leave',
-    'Personal Leave',
-    'Maternity Leave'
+    'Emergency Leave'
   ];
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
     const submitData = {
-      ...resetData,
-      user_id: resetData.user_id || null,
-      leave_type: resetData.leave_type || null
+      // Do not send year (backend uses current year); keep in local state only
+      user_id: resetData.user_id ? Number(resetData.user_id) : null,
+      leave_type: resetData.leave_type || null,
+      // Backend requires explicit flags when reseting all users/types
+      reset_all_users: !resetData.user_id,
+      reset_all_types: !resetData.leave_type,
     };
     
     onConfirm(submitData);

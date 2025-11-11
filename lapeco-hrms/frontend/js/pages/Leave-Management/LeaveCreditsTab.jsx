@@ -82,31 +82,51 @@ const LeaveCreditsTab = ({ employees, leaveRequests, handlers, onShowToast }) =>
         
         const individualHistory = leaveRequests.filter(req => req.empId === emp.id);
 
-        return {
-          ...emp,
-          leaveCredits: {
-            vacation: totalCredits.vacation || 0,
-            sick: totalCredits.sick || 0,
-            emergency: totalCredits.emergency || 0,
-          },
-          totalCredits,
-          usedCredits,
-          leaveHistory: individualHistory,
-          remainingBalance: {
-            vacation: (totalCredits.vacation || 0) - (usedCredits.vacation || 0),
-            sick: (totalCredits.sick || 0) - (usedCredits.sick || 0),
-            emergency: (totalCredits.emergency || 0) - (usedCredits.emergency || 0),
-          }
-        };
-      });
+        // Compute paternity entitlement and usage
+        const isMale = String(emp.gender || '').toLowerCase() === 'male';
+        const PATERNITY_DAYS = 7;
+        const paternityEntitlement = isMale ? PATERNITY_DAYS : null;
+        const paternityUsed = leaveRequests
+          .filter(req =>
+            req.empId === emp.id &&
+            req.status === 'Approved' &&
+            req.leaveType === 'Paternity Leave' &&
+            new Date(req.dateFrom).getFullYear() === currentYear
+          )
+          .reduce((sum, req) => sum + (req.days || 0), 0);
+
+          return {
+            ...emp,
+            leaveCredits: {
+              vacation: totalCredits.vacation || 0,
+              sick: totalCredits.sick || 0,
+              emergency: totalCredits.emergency || 0,
+            },
+            totalCredits,
+            usedCredits,
+            leaveHistory: individualHistory,
+            remainingBalance: {
+              vacation: (totalCredits.vacation || 0) - (usedCredits.vacation || 0),
+              sick: (totalCredits.sick || 0) - (usedCredits.sick || 0),
+              emergency: (totalCredits.emergency || 0) - (usedCredits.emergency || 0),
+            },
+            paternityEntitlement,
+            paternityUsed,
+          };
+        });
 
     const filteredData = calculatedData.filter(emp => emp.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return [...filteredData].sort((a, b) => {
       let valA, valB;
-      if (['vacation', 'sick', 'emergency', 'unpaid'].includes(sortConfig.key)) {
+      if (['vacation', 'sick', 'emergency', 'unpaid', 'paternity'].includes(sortConfig.key)) {
         valA = sortConfig.key === 'unpaid' ? a.usedCredits.unpaid : a.remainingBalance[sortConfig.key];
         valB = sortConfig.key === 'unpaid' ? b.usedCredits.unpaid : b.remainingBalance[sortConfig.key];
+        // Special case for paternity: sort by entitlement (male=7, female=N/A as -1)
+        if (sortConfig.key === 'paternity') {
+          valA = typeof a.paternityEntitlement === 'number' ? a.paternityEntitlement : -1;
+          valB = typeof b.paternityEntitlement === 'number' ? b.paternityEntitlement : -1;
+        }
       } else {
         valA = a.name.toLowerCase();
         valB = b.name.toLowerCase();
@@ -234,11 +254,7 @@ const LeaveCreditsTab = ({ employees, leaveRequests, handlers, onShowToast }) =>
     return sortConfig.direction === 'ascending' ? <i className="bi bi-sort-up sort-icon active ms-1"></i> : <i className="bi bi-sort-down sort-icon active ms-1"></i>;
   };
   
-  const getProgressBarVariant = (percentage) => {
-    if (percentage > 50) return 'bg-success';
-    if (percentage > 20) return 'bg-warning';
-    return 'bg-danger';
-  };
+  // Progress bars removed per request; keeping simple remaining badges
 
   return (
     <>
@@ -258,34 +274,72 @@ const LeaveCreditsTab = ({ employees, leaveRequests, handlers, onShowToast }) =>
       </div>
       <div className="card data-table-card shadow-sm">
         <div className="table-responsive">
-          <table className="table data-table mb-0 align-middle">
+          <table className="table data-table leave-credits-table mb-0 align-middle">
+            <colgroup>
+              <col style={{ width: '20%' }} />
+              <col style={{ width: '13.3333%' }} />
+              <col style={{ width: '13.3333%' }} />
+              <col style={{ width: '13.3333%' }} />
+              <col style={{ width: '13.3333%' }} />
+              <col style={{ width: '13.3333%' }} />
+              <col style={{ width: '13.3333%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th className="sortable" onClick={() => requestSort('name')}>Employee Name {getSortIcon('name')}</th>
                 <th className="sortable" onClick={() => requestSort('vacation')}>Vacation {getSortIcon('vacation')}</th>
                 <th className="sortable" onClick={() => requestSort('sick')}>Sick {getSortIcon('sick')}</th>
                 <th className="sortable" onClick={() => requestSort('emergency')}>Emergency {getSortIcon('emergency')}</th>
+                <th className="sortable text-center" onClick={() => requestSort('paternity')}>Paternity {getSortIcon('paternity')}</th>
                 <th className="sortable text-center" onClick={() => requestSort('unpaid')}>Unpaid {getSortIcon('unpaid')}</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" className="text-center p-4">Loading leave credits...</td></tr>
+                <tr><td colSpan="7" className="text-center p-4">Loading leave credits...</td></tr>
               ) : employeeLeaveData.map(emp => {
                 const vacationRemaining = emp.remainingBalance.vacation;
                 const vacationTotal = emp.totalCredits.vacation;
-                const vacationPercentage = vacationTotal > 0 ? (vacationRemaining / vacationTotal) * 100 : 0;
+                // Progress bars removed; show remaining as a badge
                 
                 return (
                   <tr key={emp.id}>
-                    <td><div>{emp.name}</div><small className="text-muted">{emp.id}</small></td>
-                    <td style={{minWidth: '200px'}}>
+                    <td><div>{emp.name}</div></td>
+                    <td>
                       <div className="balance-summary">{emp.usedCredits.vacation} of {vacationTotal} used</div>
-                      <div className="progress" style={{height: '8px'}}><div className={`progress-bar ${getProgressBarVariant(vacationPercentage)}`} style={{width: `${vacationPercentage}%`}}></div></div>
+                      <span className="remaining-badge">{Math.max(0, vacationRemaining)} left</span>
                     </td>
-                    <td className="text-center">{emp.usedCredits.sick} / {emp.totalCredits.sick}</td>
-                    <td className="text-center">{emp.usedCredits.emergency} / {emp.totalCredits.emergency}</td>
+                    <td>
+                      <div className="balance-summary">{emp.usedCredits.sick} of {emp.totalCredits.sick} used</div>
+                      {(() => {
+                        const total = emp.totalCredits.sick || 0;
+                        const remaining = Math.max(0, total - (emp.usedCredits.sick || 0));
+                        return (
+                          <span className="remaining-badge">{remaining} left</span>
+                        );
+                      })()}
+                    </td>
+                    <td>
+                      <div className="balance-summary">{emp.usedCredits.emergency} of {emp.totalCredits.emergency} used</div>
+                      {(() => {
+                        const total = emp.totalCredits.emergency || 0;
+                        const remaining = Math.max(0, total - (emp.usedCredits.emergency || 0));
+                        return (
+                          <span className="remaining-badge">{remaining} left</span>
+                        );
+                      })()}
+                    </td>
+                    <td className="text-center">
+                      {typeof emp.paternityEntitlement === 'number' ? (
+                        <>
+                          <div className="balance-summary">{(emp.paternityUsed || 0)} of {emp.paternityEntitlement} used</div>
+                          <span className="remaining-badge">{Math.max(0, (emp.paternityEntitlement || 0) - (emp.paternityUsed || 0))} left</span>
+                        </>
+                      ) : (
+                        'N/A'
+                      )}
+                    </td>
                     <td className="text-center fw-bold">{emp.usedCredits.unpaid || 0}</td>
                     <td>
                         <div className="dropdown">
@@ -300,7 +354,7 @@ const LeaveCreditsTab = ({ employees, leaveRequests, handlers, onShowToast }) =>
                 );
               })}
               {!loading && employeeLeaveData.length === 0 && (
-                <tr><td colSpan="6" className="text-center p-4">No employees found.</td></tr>
+                <tr><td colSpan="7" className="text-center p-4">No employees found.</td></tr>
               )}
             </tbody>
           </table>
