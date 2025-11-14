@@ -1079,6 +1079,7 @@ class PayrollController extends Controller
             $leaveDays = $leave->days ?? 1;
             $leaveAmount = round($leaveDays * $dailyRate, 2);
             $leavePay += $leaveAmount;
+            $leavePayHours = $leaveDays * 8;
 
             $leaveEarningsSummary[] = [
                 'type' => $leave->type,
@@ -1089,7 +1090,7 @@ class PayrollController extends Controller
 
         // Add leave pay to earnings if any
         if ($leavePay > 0) {
-            $this->addEarning($earnings, 'Leave Pay', 0, $leavePay);
+            $this->addEarning($earnings, 'Leave Pay', $leavePayHours, $leavePay);
             $gross += $leavePay;
         }
 
