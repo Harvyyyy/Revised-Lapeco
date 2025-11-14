@@ -80,7 +80,10 @@ class DatabaseSeeder extends Seeder
         ];
         $positionIds = [];
         foreach ($positions as $pos) {
-            $position = Position::create($pos);
+            $position = Position::firstOrCreate(
+                ['name' => $pos['name']],
+                $pos
+            );
             $positionIds[$pos['name']] = $position->id;
         }
 
@@ -179,7 +182,10 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($seedUsers as $userData) {
-            \App\Models\User::factory()->create($userData);
+            $exists = \App\Models\User::where('email', $userData['email'])->exists();
+            if (!$exists) {
+                \App\Models\User::factory()->create($userData);
+            }
         }
 
         // Create additional users distributed among positions
