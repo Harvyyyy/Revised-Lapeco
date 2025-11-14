@@ -1166,10 +1166,10 @@ class PayrollController extends Controller
             $type = strtoupper((string) $holiday->type);
 
             if ($type === 'REGULAR') {
-                return [2.0, 2.0, 'Holiday Pay Reg', 'Holiday Pay OT'];
+                return [2.0, 2.0, 'Regular Holiday Pay', 'Regular Holiday Pay OT'];
             }
 
-            return [1.3, 1.3, 'Special Rate Pay Reg', 'Special Rate Pay OT'];
+            return [1.3, 1.3, 'Special Holiday Pay', 'Special Holiday Pay OT'];
         }
 
         return [1.0, 1.0, 'Regular Hours', 'Overtime Pay'];
