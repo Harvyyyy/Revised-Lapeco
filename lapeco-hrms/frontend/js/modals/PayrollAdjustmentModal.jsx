@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { addDays } from 'date-fns';
+import { formatDate as formatMDY } from '../utils/dateUtils';
 import './PayrollAdjustmentModal.css';
 import ReportPreviewModal from './ReportPreviewModal';
 import useReportGenerator from '../hooks/useReportGenerator';
@@ -535,7 +536,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, onSaveEmployeeInfo, pay
                           <option value="Unexcused">Unexcused</option><option value="Excused">Excused</option>
                         </select>
                       </td>
-                      <td>{new Date(item.startDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
+                      <td>{formatMDY(new Date(item.startDate + 'T00:00:00'), 'long')}</td>
                   </tr>
                   ))}
               </tbody>

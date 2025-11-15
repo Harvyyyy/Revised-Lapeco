@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDate as formatMDY, getDayOfWeek } from '../../utils/dateUtils';
 import StatDonutChart from '../../common/StatDonutChart';
 
 const HistoryAttendanceView = ({
@@ -80,15 +81,7 @@ const HistoryAttendanceView = ({
               <div key={day.date} className="attendance-history-card" onClick={() => handleViewHistoryDetail(day.date)}>
                 <div className="card-header">
                   <h5 className="card-title">
-                    {day.date ? 
-                      new Date(day.date).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      }) : 
-                      'Invalid Date'
-                    }
+                    {day.date ? `${getDayOfWeek(day.date)} ${formatMDY(new Date(day.date), 'long')}` : 'Invalid Date'}
                   </h5>
                   <button 
                     className="btn btn-sm btn-outline-danger delete-history-btn" 
@@ -145,9 +138,7 @@ const HistoryAttendanceView = ({
         <div className="d-flex align-items-center mb-3">
           <i className="bi bi-calendar-date me-2"></i>
           <strong>
-            {currentDate ? new Date(currentDate).toLocaleDateString('en-US', {
-              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-            }) : 'Select a date'}
+            {currentDate ? `${getDayOfWeek(currentDate)} ${formatMDY(new Date(currentDate), 'long')}` : 'Select a date'}
           </strong>
         </div>
         <div className="daily-view-header-bar">
