@@ -27,7 +27,7 @@ class PayrollController extends Controller
         $periods = PayrollPeriod::withCount('employeePayrolls')
             ->orderByDesc('period_start')
             ->get();
-
+        
         $runs = $periods->map(function (PayrollPeriod $period) {
             // Load payroll records to decrypt and calculate totals
             // Note: Can't use SQL SUM() on encrypted fields
@@ -914,6 +914,10 @@ class PayrollController extends Controller
     protected function calculateOvertimeHours($recordedOvertime, float $attendedHours, float $scheduledHours): float
     {
         $overtime = is_null($recordedOvertime) ? 0.0 : (float) $recordedOvertime;
+
+        if ($attendedHours <= 0) {
+            return 0.0;
+        }
 
         if ($attendedHours > $scheduledHours && $scheduledHours > 0) {
             $overtime += $attendedHours - $scheduledHours;
