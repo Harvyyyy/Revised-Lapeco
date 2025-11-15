@@ -1,5 +1,6 @@
 import React from 'react';
 import placeholderAvatar from '../../assets/placeholder-profile.jpg';
+import { formatDate as formatMDY } from '../../utils/dateUtils';
 
 const TeamMemberQuickViewModal = ({ show, onClose, member, positionTitle }) => {
   if (!show || !member) return null;
@@ -75,7 +76,7 @@ const TeamMemberQuickViewModal = ({ show, onClose, member, positionTitle }) => {
                 <div>
                   <div className="kv-label">Birthday</div>
                   <div className="kv-value">
-                    {member.birthdate ? new Date(member.birthdate).toLocaleDateString() : 'N/A'}
+                    {member.birthdate ? formatMDY(new Date(member.birthdate), 'long') : 'N/A'}
                     {age !== null && (
                       <span className="badge bg-secondary-subtle text-secondary-emphasis ms-2">Age {age}</span>
                     )}

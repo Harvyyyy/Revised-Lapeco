@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getActivityLogs, getActionTypes, getEntityTypes } from '../../services/accountService';
 import { formatDistanceToNow, format, parseISO, isToday, isYesterday, startOfDay } from 'date-fns';
+import { formatDate as formatMDY } from '../../utils/dateUtils';
 import './ActivityLogs.css';
 
 const ActivityLogs = () => {
@@ -168,7 +169,7 @@ const ActivityLogs = () => {
     const date = parseISO(dateString);
     if (isToday(date)) return 'Today';
     if (isYesterday(date)) return 'Yesterday';
-    return format(date, 'MMMM dd, yyyy');
+    return formatMDY(date, 'long');
   };
   
   const groupedLogs = useMemo(() => groupLogsByDate(logs), [logs]);
@@ -264,7 +265,7 @@ const ActivityLogs = () => {
               name="from_date"
               value={filters.from_date}
               onChange={handleFilterChange}
-              placeholder="From Date"
+              placeholder="mm-dd-yyyy"
             />
           </div>
           <div className="col-md-2">
@@ -276,6 +277,7 @@ const ActivityLogs = () => {
               value={filters.to_date}
               onChange={handleFilterChange}
               max={new Date().toISOString().split('T')[0]}
+              placeholder="mm-dd-yyyy"
             />
           </div>
         </div>
@@ -414,7 +416,7 @@ const ActivityLogs = () => {
                             {formatDistanceToNow(parseISO(log.created_at), { addSuffix: true })}
                           </small>
                           <small className="text-muted">
-                            {format(parseISO(log.created_at), 'MMM dd, yyyy h:mm a')}
+                            {(() => { const d = parseISO(log.created_at); return `${formatMDY(d, 'short')} ${format(d, 'h:mm a')}`; })()}
                           </small>
                         </div>
                       </td>

@@ -20,7 +20,7 @@ export const formatDate = (date, format = 'medium') => {
 
   if (format === 'long') {
     const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
-    return `${monthName}-${dd}-${yyyy}`; // e.g., November-07-2025
+    return `${monthName} ${dd}, ${yyyy}`; // e.g., November 07, 2025
   }
 
   // Default to numeric Month-Day-Year

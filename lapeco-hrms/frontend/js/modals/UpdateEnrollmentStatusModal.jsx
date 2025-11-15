@@ -26,23 +26,29 @@ const UpdateEnrollmentStatusModal = ({ show, onClose, onSave, enrollmentData }) 
   };
 
   const handleProgressChange = (e) => {
-    const newProgress = Number(e.target.value);
-
+    const raw = e.target.value;
+    if (raw === '') {
+      setProgress('');
+      return;
+    }
+    const newProgress = Number(raw);
     setProgress(newProgress);
-    
-    // Auto-adjust status based on progress
-    if (newProgress === 0 && status !== 'Not Started') {
-      setStatus('Not Started');
-    } else if (newProgress === 100 && status !== 'Completed') {
-      setStatus('Completed');
-    } else if (newProgress > 0 && newProgress < 100 && status !== 'In Progress') {
-      setStatus('In Progress');
+    if (!isNaN(newProgress)) {
+      if (newProgress === 0 && status !== 'Not Started') {
+        setStatus('Not Started');
+      } else if (newProgress === 100 && status !== 'Completed') {
+        setStatus('Completed');
+      } else if (newProgress > 0 && newProgress < 100 && status !== 'In Progress') {
+        setStatus('In Progress');
+      }
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(enrollmentData.enrollmentId, { status, progress });
+    const p = Number(progress || 0);
+    const clamped = Math.max(0, Math.min(100, isNaN(p) ? 0 : p));
+    onSave(enrollmentData.enrollmentId, { status, progress: clamped });
     onClose();
   };
 
