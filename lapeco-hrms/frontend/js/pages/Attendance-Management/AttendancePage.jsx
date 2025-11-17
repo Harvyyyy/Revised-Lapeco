@@ -772,14 +772,14 @@ const AttendancePage = () => {
             let logType = 'Unknown';
             if (status) {
               const statusLower = status.toLowerCase();
-              if (statusLower.includes('c/in') || statusLower.includes('sign in')) {
+              if (statusLower.includes('b/in') || statusLower.includes('break in')) {
+                logType = 'Break In';
+              } else if (statusLower.includes('b/out') || statusLower.includes('break out')) {
+                logType = 'Break Out';
+              } else if (statusLower.includes('c/in') || statusLower.includes('sign in')) {
                 logType = 'Sign In';
               } else if (statusLower.includes('c/out') || statusLower.includes('sign out')) {
                 logType = 'Sign Out';
-              } else if (statusLower.includes('break in')) {
-                logType = 'Break In';
-              } else if (statusLower.includes('break out')) {
-                logType = 'Break Out';
               }
             }
             
