@@ -1,13 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format, addDays } from 'date-fns';
 import { formatDate as formatMDY } from '../../utils/dateUtils';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { payrollAPI } from '../../services/api';
+import { PdfLayoutManager } from '../../utils/pdfLayoutManager';
+import { loadReportGenerator } from '../../reports';
+
+import ReportPreviewModal from '../../modals/ReportPreviewModal';
 
 const formatCurrency = (value) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const PayrollRunCard = ({ run, onViewDetails, onMarkAsPaid, onDelete }) => {
+  const [isGeneratingPayslips, setIsGeneratingPayslips] = useState(false);
+  const [showPayslipPreview, setShowPayslipPreview] = useState(false);
+  const [pdfDataUri, setPdfDataUri] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [progressText, setProgressText] = useState('');
 
   const handleExportRun = async (e) => {
     e.stopPropagation();
@@ -45,6 +54,80 @@ const PayrollRunCard = ({ run, onViewDetails, onMarkAsPaid, onDelete }) => {
     } catch (error) {
       console.error('Error exporting payroll:', error);
       alert('Failed to export payroll data. Please try again.');
+    }
+  };
+
+  const handleClosePayslipPreview = () => {
+    setShowPayslipPreview(false);
+    if (pdfDataUri) URL.revokeObjectURL(pdfDataUri);
+    setPdfDataUri('');
+    setProgress(0);
+    setProgressText('');
+  };
+
+  const handleGeneratePayslips = async (e) => {
+    e.stopPropagation();
+    if (isGeneratingPayslips) return;
+    setIsGeneratingPayslips(true);
+    try {
+      const details = await payrollAPI.getPeriodDetails(run.periodId);
+      const records = details?.data?.records || [];
+      if (!records.length) {
+        alert('No payroll records found for this run.');
+        setIsGeneratingPayslips(false);
+        return;
+      }
+
+      const generator = await loadReportGenerator('payslip');
+      if (!generator) {
+        alert('Payslip generator not available.');
+        setIsGeneratingPayslips(false);
+        return;
+      }
+
+      const layoutManager = new PdfLayoutManager('portrait', 'Payslips', 'light', { skipHeader: true, skipFooter: true });
+      setShowPayslipPreview(true);
+      setProgress(0);
+      setProgressText(`Preparing ${records.length} payslips...`);
+
+      for (let i = 0; i < records.length; i++) {
+        const rec = records[i];
+        const { data } = await payrollAPI.getPayrollRecord(rec.payrollId);
+        const [start, end] = (data.cutOff || details?.data?.cutOff || '').split(' to ');
+        const paymentDate = data.paymentDate || addDays(new Date(end), 5).toISOString().split('T')[0];
+        const payslipData = {
+          payrollId: String(data.payrollId || ''),
+          empId: String(data.empId || ''),
+          employeeName: String(data.employeeName || ''),
+          cutOff: String(data.cutOff || details?.data?.cutOff || ''),
+          payStartDate: data.payStartDate || start,
+          payEndDate: data.payEndDate || end,
+          paymentDate,
+          period: data.period || (data.cutOff || ''),
+          earnings: data.earnings || [],
+          deductions: data.deductions || {},
+          otherDeductions: data.otherDeductions || [],
+          absences: data.absences || [],
+          leaveBalances: data.leaveBalances || {},
+        };
+        const employeeDetails = data.employeeDetails || { id: data.empId, name: data.employeeName, positionTitle: data.position };
+        if (i > 0) layoutManager.doc.addPage();
+        await generator(layoutManager, { payslipData, employeeDetails });
+        const p = Math.round(((i + 1) / records.length) * 100);
+        setProgress(p);
+        setProgressText(`Generated ${i + 1}/${records.length} payslips...`);
+      }
+
+      const blob = layoutManager.getOutput('blob');
+      const uri = URL.createObjectURL(blob);
+      setPdfDataUri(uri);
+      setProgress(100);
+      setProgressText('Ready');
+    } catch (err) {
+      console.error('Error generating payslips:', err);
+      alert('Failed to generate payslips. Please try again.');
+    } finally {
+      setIsGeneratingPayslips(false);
     }
   };
 
@@ -113,11 +196,22 @@ const PayrollRunCard = ({ run, onViewDetails, onMarkAsPaid, onDelete }) => {
                 </button>
                 <ul className="dropdown-menu dropdown-menu-end">
                     <li><a className="dropdown-item" href="#" onClick={handleExportRun}><i className="bi bi-download me-2"></i>Export CSV</a></li>
+                    <li><a className="dropdown-item" href="#" onClick={handleGeneratePayslips}><i className="bi bi-file-earmark-pdf me-2"></i>{isGeneratingPayslips ? 'Generating Payslips...' : 'Preview Payslips (PDF)'}</a></li>
                     <li><hr className="dropdown-divider" /></li>
                     <li><a className="dropdown-item text-danger" href="#" onClick={(e) => handleActionClick(e, onDelete)}><i className="bi bi-trash-fill me-2"></i>Delete Run</a></li>
                 </ul>
             </div>
-        </div>
+      </div>
+      {(isGeneratingPayslips || pdfDataUri) && (
+        <ReportPreviewModal
+          show={showPayslipPreview}
+          onClose={handleClosePayslipPreview}
+          pdfDataUri={pdfDataUri}
+          reportTitle={`Payslips ${run.runId}`}
+          progress={progress}
+          progressText={progressText}
+        />
+      )}
       </div>
     </div>
   );

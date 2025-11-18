@@ -45,7 +45,7 @@ const addFooterAndConcernSlip = (doc, y, pageWidth, employeeDetails, payrollId) 
         if (value) {
             doc.setFont(FONT_REGULAR, 'bold'); 
             doc.setTextColor(COLOR_PRIMARY); 
-            doc.text(value, valueStartX, lineY - 2);
+            doc.text(String(value ?? ''), valueStartX, lineY - 2);
         }
     };
     
@@ -139,11 +139,11 @@ export const generatePayslipReport = async (layoutManager, dataSources) => {
         const item1 = data[i], item2 = data[i + numRows];
         if (item1) {
             doc.setTextColor(COLOR_SECONDARY); doc.text(`${item1.label}:`, col1X, currentY);
-            doc.setTextColor(COLOR_PRIMARY); doc.text(item1.value, col1X + valueOffset, currentY);
+            doc.setTextColor(COLOR_PRIMARY); doc.text(String(item1.value ?? ''), col1X + valueOffset, currentY);
         }
         if (item2) {
             doc.setTextColor(COLOR_SECONDARY); doc.text(`${item2.label}:`, col2X, currentY);
-            doc.setTextColor(COLOR_PRIMARY); doc.text(item2.value, col2X + valueOffset, currentY);
+            doc.setTextColor(COLOR_PRIMARY); doc.text(String(item2.value ?? ''), col2X + valueOffset, currentY);
         }
     }
     y += numRows * LINE_HEIGHT;
