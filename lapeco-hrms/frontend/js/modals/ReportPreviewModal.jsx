@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import './ReportPreviewModal.css';
 
-const ReportPreviewModal = ({ show, onClose, pdfDataUri, reportTitle }) => {
+const ReportPreviewModal = ({ show, onClose, pdfDataUri, reportTitle, progress, progressText }) => {
   useEffect(() => {
     return () => {
       if (pdfDataUri) {
@@ -43,7 +43,14 @@ const ReportPreviewModal = ({ show, onClose, pdfDataUri, reportTitle }) => {
                 style={{ border: 'none' }} 
               />
             ) : (
-              <p>Generating report preview...</p>
+              <div>
+                <p className="mb-3">{progressText || 'Generating report preview...'}</p>
+                {typeof progress === 'number' && (
+                  <div className="progress" style={{ height: '8px' }}>
+                    <div className="progress-bar" role="progressbar" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} aria-valuenow={Math.max(0, Math.min(100, progress))} aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <div className="modal-footer">
