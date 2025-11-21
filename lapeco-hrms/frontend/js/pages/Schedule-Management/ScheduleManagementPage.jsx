@@ -740,10 +740,10 @@ const ScheduleManagementPage = (props) => {
     setShowSelectDateModal(true);
   };
 
-  const handleProceedToBuilder = (selectedDate) => {
+  const handleProceedToBuilder = (selectedDates) => {
     navigate('/dashboard/schedule-management/create', { 
       state: { 
-        date: selectedDate, 
+        dates: Array.isArray(selectedDates) ? selectedDates : [selectedDates], 
         method: creationSource.type, 
         sourceData: creationSource.data 
       } 

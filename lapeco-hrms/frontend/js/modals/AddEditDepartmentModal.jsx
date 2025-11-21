@@ -51,7 +51,8 @@ const AddEditDepartmentModal = ({ show, onClose, onSave, departmentData }) => {
               </div>
               <div className="mb-3">
                 <label htmlFor="description" className="form-label">Description</label>
-                <textarea id="description" name="description" className="form-control" rows="4" value={formData.description} onChange={handleChange}></textarea>
+                <textarea id="description" name="description" className="form-control" rows="4" maxLength={160} value={formData.description} onChange={handleChange}></textarea>
+                <small className="form-text text-muted">{(formData.description || '').length}/160 characters</small>
               </div>
             </div>
             <div className="modal-footer">
