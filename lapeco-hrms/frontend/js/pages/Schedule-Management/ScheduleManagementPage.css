@@ -289,3 +289,44 @@
     color: var(--text-secondary) !important;
     border-color: var(--border-color) !important;
 }
+
+.selected-dates-section {
+  margin-top: 0.25rem;
+}
+.selected-dates-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.selected-date-badge {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.schedule-name-input-container input.form-control-lg {
+  box-shadow: var(--card-shadow);
+}
+
+.schedule-builder-table {
+  max-height: 55vh;
+  overflow: auto;
+}
+.schedule-builder-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: var(--thead-bg);
+  z-index: 1;
+}
+
+.employee-id-column { width: 110px; }
+.employee-name-column { min-width: 260px; }
+.position-column { min-width: 160px; }
+.action-column { width: 56px; }
+
+.shift-input {
+  min-width: 120px;
+}

@@ -504,7 +504,7 @@ const DepartmentsPage = () => {
           <p className="mt-3 mb-0">Loading departments...</p>
         </div>
       ) : (
-        <div className="positions-grid-container">
+        <div className="positions-grid-container departments-grid">
           {filteredDepartments.length > 0 ? (
             filteredDepartments.map(dept => (
               <div key={dept.id} className="position-card">

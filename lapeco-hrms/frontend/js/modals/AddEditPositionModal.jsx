@@ -124,7 +124,6 @@ const AddEditPositionModal = ({ show, onClose, onSave, positionData }) => {
     { key: 'my_attendance', label: 'My Attendance' },
     { key: 'my_resignation', label: 'My Resignation' },
     { key: 'my_payroll', label: 'My Payroll' },
-    { key: 'account_settings', label: 'Account Settings' },
   ];
 
   const handleChange = (e) => {

@@ -47,7 +47,7 @@ class DepartmentController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:160',
         ]);
 
         $department = Department::create($validated);
@@ -59,7 +59,7 @@ class DepartmentController extends Controller
     {
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|nullable|string',
+            'description' => 'sometimes|nullable|string|max:160',
         ]);
         $department->update($validated);
         $this->logUpdate('department', $department->id, $department->name);

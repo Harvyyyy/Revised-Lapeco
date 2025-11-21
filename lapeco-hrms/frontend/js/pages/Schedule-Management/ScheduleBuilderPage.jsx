@@ -124,13 +124,15 @@ const ScheduleBuilderPage = (props) => {
   const location = useLocation();
   
   // Get data from navigation state or props
-  const { date, method, sourceData } = location.state || {};
+  const { dates, date, method, sourceData } = location.state || {};
   const { initialDate, handlers: propHandlers } = props;
   
-  const scheduleDate = date;
+  const selectedDates = Array.isArray(dates) && dates.length ? dates : (date ? [date] : []);
+  const scheduleDate = selectedDates[0] || date;
   const handlers = propHandlers || defaultHandlers;
 
   const [scheduleName, setScheduleName] = useState('');
+  const [dateNames, setDateNames] = useState({});
   const [columns, setColumns] = useState([
     { key: 'start_time', name: 'Start Time' },
     { key: 'end_time', name: 'End Time' },
@@ -147,6 +149,80 @@ const ScheduleBuilderPage = (props) => {
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
+  };
+
+  const formatPrettyDate = (iso) => {
+    if (!iso) return '';
+    const parts = String(iso).split('-');
+    if (parts.length !== 3) return iso;
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    const d = Number(parts[2]);
+    const dt = new Date(y, m - 1, d);
+    if (Number.isNaN(dt.getTime())) return iso;
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${mm}-${dd}-${String(y)}`;
+  };
+
+  useEffect(() => {
+    if (selectedDates && selectedDates.length) {
+      setDateNames(prev => {
+        const next = {};
+        selectedDates.forEach(d => {
+          next[d] = prev[d] ?? `Schedule for ${d}`;
+        });
+        return next;
+      });
+    } else {
+      setDateNames({});
+    }
+  }, [selectedDates]);
+
+  const handleSaveScheduleMulti = async () => {
+    const finalScheduleName = scheduleName.trim() || `Schedule for ${scheduleDate}`;
+
+    const baseEntries = [];
+    const uniqueEmpIds = new Set();
+    let hasDuplicates = false;
+
+    gridData.forEach(row => {
+      if (row.empId) {
+        if (uniqueEmpIds.has(row.empId)) hasDuplicates = true; else uniqueEmpIds.add(row.empId);
+        const entryData = columns.reduce((acc, col) => {
+          const value = row[col.key];
+          if (['break_start', 'break_end'].includes(col.key)) acc[col.key] = value && String(value).trim() !== '' ? value : null;
+          else if (col.key === 'ot_hours') acc[col.key] = value && value !== '---' ? value : '0';
+          else if (value && String(value).trim() !== '') acc[col.key] = value;
+          return acc;
+        }, {});
+        if (!('break_start' in entryData) && Object.prototype.hasOwnProperty.call(row, 'break_start')) entryData.break_start = row.break_start ? row.break_start : null;
+        if (!('break_end' in entryData) && Object.prototype.hasOwnProperty.call(row, 'break_end')) entryData.break_end = row.break_end ? row.break_end : null;
+        if (!entryData.ot_hours) entryData.ot_hours = '0';
+        if (Object.keys(entryData).length > 0 && entryData.start_time && entryData.end_time) baseEntries.push({ empId: row.empId, ...entryData });
+      }
+    });
+
+    if (hasDuplicates) { showToast("Error: Each employee can only be listed once per schedule.", "error"); return; }
+    if (baseEntries.length === 0) { showToast("Please add at least one employee and assign a valid shift.", "warning"); return; }
+
+    const datesToProcess = (selectedDates && selectedDates.length) ? selectedDates : [scheduleDate];
+    let createdCount = 0; let failedDates = [];
+    for (const d of datesToProcess) {
+      const nameForDate = (dateNames && dateNames[d] && String(dateNames[d]).trim() !== '') ? dateNames[d].trim() : (scheduleName.trim() || `Schedule for ${d}`);
+      const entriesForDate = baseEntries.map(e => ({ ...e, date: d, name: nameForDate }));
+      const ok = await handlers.createSchedules(entriesForDate, showToast);
+      if (ok) createdCount++; else failedDates.push(d);
+    }
+    if (createdCount > 0) {
+      navigate('/dashboard/schedule-management', {
+        state: {
+          successMessage: failedDates.length ? `Created ${createdCount} schedule(s). Skipped: ${failedDates.join(', ')}` : 'Schedule saved successfully!',
+          scheduleDate: scheduleDate,
+          scheduleName: finalScheduleName
+        }
+      });
+    }
   };
 
   const employeeOptions = useMemo(() => employees.map(e => ({ value: e.id, label: `${e.name} (${e.id})` })), [employees]);
@@ -380,7 +456,7 @@ const ScheduleBuilderPage = (props) => {
 
   const handleSaveSchedule = async () => {
     // Auto-generate schedule name if not provided
-    const finalScheduleName = scheduleName.trim() || `Schedule for ${scheduleDate}`;
+    const finalScheduleName = (dateNames && dateNames[scheduleDate] && String(dateNames[scheduleDate]).trim() !== '') ? dateNames[scheduleDate].trim() : (scheduleName.trim() || `Schedule for ${scheduleDate}`);
 
     const newScheduleEntries = [];
     const uniqueEmpIds = new Set();
@@ -452,21 +528,59 @@ const ScheduleBuilderPage = (props) => {
         }}><i className="bi bi-arrow-left"></i></button>
         <div className="flex-grow-1">
           <h1 className="page-main-title mb-0">Schedule Builder</h1>
-          <p className="page-subtitle text-muted mb-0">Building schedule for <strong>{scheduleDate}</strong></p>
+          <p className="page-subtitle text-muted mb-0">Building schedule for <strong>{formatPrettyDate(scheduleDate)}</strong>{selectedDates && selectedDates.length > 1 ? ` (+${selectedDates.length - 1} more)` : ''}</p>
+          {selectedDates && selectedDates.length > 0 && (
+            <div className="mt-2 selected-dates-section">
+              <label className="form-label fw-bold mb-1">Selected Dates ({selectedDates.length})</label>
+              <div className="selected-dates-badges">
+                {selectedDates.map(d => (
+                  <span key={d} className="selected-date-badge">
+                    {formatPrettyDate(d)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="header-actions">
           <button className="btn btn-outline-secondary action-button-secondary" onClick={() => setShowAddColumnModal(true)}><i className="bi bi-layout-three-columns"></i> Add Column</button>
         </div>
       </header>
-      <div className="mb-3 schedule-name-input-container">
-        <label htmlFor="scheduleName" className="form-label fw-bold">Schedule Name</label>
-        <input type="text" className="form-control form-control-lg" id="scheduleName" placeholder={`e.g., Weekday Production Team")`} value={scheduleName} onChange={e => setScheduleName(e.target.value)} />
-      </div>
+      {(!selectedDates || selectedDates.length <= 1) && (
+        <div className="mb-3 schedule-name-input-container">
+          <label htmlFor="scheduleName" className="form-label fw-bold">Schedule Name</label>
+          <input type="text" className="form-control form-control-lg" id="scheduleName" placeholder={`e.g., Weekday Production Team")`} value={scheduleName} onChange={e => setScheduleName(e.target.value)} />
+        </div>
+      )}
+
+      {selectedDates && selectedDates.length > 1 && (
+        <div className="card mb-3">
+          <div className="card-body">
+            <label className="form-label fw-bold">Schedule Names by Date</label>
+            <div className="row g-2">
+              {selectedDates.map(d => (
+                <div key={d} className="col-12 col-md-6">
+                  <div className="input-group">
+                    <span className="input-group-text">{formatPrettyDate(d)}</span>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={dateNames[d] || ''}
+                      onChange={e => setDateNames(prev => ({ ...prev, [d]: e.target.value }))}
+                      placeholder={`Schedule for ${d}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card data-table-card">
         <div className="card-body">
           <div className="table-responsive schedule-builder-table">
-            <table className="table table-bordered table-sm">
+            <table className="table table-bordered table-sm table-hover align-middle">
               <thead>
                 <tr>
                   <th className="employee-id-column">Employee ID</th>
@@ -535,7 +649,7 @@ const ScheduleBuilderPage = (props) => {
         <button type="button" className="btn btn-outline-secondary" onClick={() => {
           navigate('/dashboard/schedule-management');
         }}>Cancel</button>
-        <button type="button" className="btn btn-success action-button-primary" onClick={handleSaveSchedule}>Save Schedule</button>
+        <button type="button" className="btn btn-success action-button-primary" onClick={handleSaveScheduleMulti}>Save Schedule</button>
       </div>
 
       <AddColumnModal
