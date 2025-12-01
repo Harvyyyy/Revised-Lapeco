@@ -1,0 +1,256 @@
+/* ScheduleBuilderPage.css */
+
+/* --- Layout Containers --- */
+.builder-container {
+    max-width: 100%;
+    /* Ensure sufficient space for the sticky footer (approx 80px height + margins) */
+    padding-bottom: 120px !important;
+}
+
+/* --- Header Section --- */
+.builder-header-card {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    box-shadow: var(--card-shadow);
+}
+
+.builder-title-section h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.builder-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 0;
+}
+
+.date-badge-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.date-badge-item {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* --- Controls & Inputs --- */
+.schedule-name-section {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--card-shadow);
+}
+
+.builder-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* --- Grid / Table Area --- */
+.builder-grid-card {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.5rem;
+}
+
+.builder-table-wrapper {
+    max-height: calc(100vh - 350px);
+    overflow: auto;
+    position: relative;
+}
+
+.builder-table {
+    margin-bottom: 0;
+    width: 100%;
+    border-collapse: separate; /* Required for sticky headers */
+    border-spacing: 0;
+}
+
+.builder-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--border-color);
+    z-index: 10;
+    white-space: nowrap;
+    box-shadow: 0 1px 0 var(--border-color); /* Fix for border visibility on scroll */
+}
+
+.builder-table tbody td {
+    padding: 0;
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    vertical-align: middle;
+    height: 48px;
+}
+
+.builder-table tbody td:last-child {
+    border-right: none;
+}
+
+/* --- Input Styling --- */
+.cell-input {
+    width: 100%;
+    height: 100%;
+    border: 2px solid transparent;
+    padding: 0 1rem;
+    font-size: 0.9rem;
+    background-color: transparent;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+    border-radius: 0;
+}
+
+.cell-input:hover {
+    background-color: var(--bg-secondary);
+}
+
+.cell-input:focus {
+    background-color: var(--bg-primary);
+    border-color: var(--app-success-color);
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgba(var(--app-success-rgb), 0.1);
+}
+
+.cell-input.readonly {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+/* Specific Column Widths */
+.col-emp-id { width: 100px; min-width: 100px; }
+.col-emp-name { width: 250px; min-width: 250px; }
+.col-position { width: 180px; min-width: 180px; }
+.col-time { width: 130px; min-width: 130px; }
+.col-action { width: 50px; min-width: 50px; text-align: center; }
+
+/* React Select Customization for Table */
+.builder-table .react-select__control {
+    border: none;
+    background-color: transparent;
+    border-radius: 0;
+    min-height: 46px;
+    box-shadow: none;
+}
+.builder-table .react-select__control:hover {
+    background-color: var(--bg-secondary);
+}
+.builder-table .react-select__control--is-focused {
+    background-color: var(--bg-primary) !important;
+    box-shadow: inset 0 0 0 2px var(--app-success-color) !important;
+}
+.builder-table .react-select__menu {
+    z-index: 9999 !important;
+    min-width: 200px;
+}
+
+/* --- Sticky Footer --- */
+.builder-footer {
+    position: sticky;
+    bottom: 0;
+    background-color: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+    /* Responsive negative margins to match container padding */
+    margin: 0 -0.5rem -0.5rem -0.5rem;
+}
+
+@media (min-width: 768px) {
+    .builder-footer {
+        margin: 0 -1rem -1rem -1rem;
+    }
+}
+
+@media (min-width: 992px) {
+    .builder-footer {
+        margin: 0 -1.5rem -1.5rem -1.5rem;
+    }
+}
+
+.builder-container {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 100px); /* Approximate height adjustment */
+    position: relative;
+}
+
+.footer-info {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.footer-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+/* --- Add Row Button Area --- */
+.add-row-section {
+    padding: 0.75rem;
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.btn-add-row {
+    width: 100%;
+    border: 1px dashed var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-secondary);
+    padding: 0.75rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-add-row:hover {
+    border-color: var(--app-success-color);
+    color: var(--app-success-color);
+    background-color: rgba(var(--app-success-rgb), 0.05);
+}
+
+/* --- Dark Mode Adjustments --- */
+.dark-theme .builder-footer,
+.dark-theme .builder-table thead th {
+    background-color: #1e1e2d; /* Darker bg for headers/footers */
+}
+
+.dark-theme .cell-input:hover {
+    background-color: rgba(255,255,255,0.05);
+}

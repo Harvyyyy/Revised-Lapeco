@@ -1,0 +1,171 @@
+/* SelectDateForScheduleModal.css */
+
+.select-date-modal .modal-header {
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1.25rem 1.5rem;
+}
+
+.select-date-modal .modal-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+}
+
+.select-date-modal .modal-body {
+    padding: 1.5rem;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.select-date-modal .section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.5px;
+}
+
+.select-date-modal .input-group-custom {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.select-date-modal .input-wrapper {
+    position: relative;
+    flex-grow: 1;
+}
+
+.select-date-modal .input-wrapper i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.select-date-modal .form-control-custom {
+    padding-left: 36px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    height: 42px;
+}
+
+.select-date-modal .form-control-custom:focus {
+    border-color: var(--app-success-color);
+    box-shadow: 0 0 0 3px rgba(var(--app-success-rgb), 0.1);
+    background-color: var(--bg-primary);
+}
+
+.select-date-modal .btn-add {
+    height: 42px;
+    padding: 0 1.25rem;
+    font-weight: 500;
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.select-date-modal .date-range-container {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.select-date-modal .selected-dates-area {
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    background-color: var(--bg-secondary);
+    min-height: 100px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.select-date-modal .selected-dates-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.select-date-modal .date-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.4rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.select-date-modal .date-badge:hover {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+.select-date-modal .date-badge .remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    margin-left: 0.5rem;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.select-date-modal .date-badge:hover .remove-btn {
+    color: var(--danger-color);
+}
+
+.select-date-modal .modal-footer {
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+}
+
+.select-date-modal .btn-proceed {
+    background-color: var(--app-success-color);
+    color: var(--text-on-success);
+    font-weight: 600;
+    padding: 0.6rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.select-date-modal .btn-proceed:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+.select-date-modal .btn-proceed:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.select-date-modal .empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 1rem;
+    font-size: 0.9rem;
+    font-style: italic;
+}
