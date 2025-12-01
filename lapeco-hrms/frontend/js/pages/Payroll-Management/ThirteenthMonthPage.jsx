@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { employeeAPI, payrollAPI } from '../../services/api';
+import { employeeAPI, payrollAPI, systemSettingAPI } from '../../services/api';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { differenceInMonths, parseISO, endOfYear, startOfYear } from 'date-fns';
 import useReportGenerator from '../../hooks/useReportGenerator';
 import ReportPreviewModal from '../../modals/ReportPreviewModal';
 import ConfirmationModal from '../../modals/ConfirmationModal';
@@ -18,6 +19,11 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
     const [statuses, setStatuses] = useState({});
     const [showConfirmMarkAll, setShowConfirmMarkAll] = useState(false);
 
+    // Settings
+    const [minMonthsRequired, setMinMonthsRequired] = useState(1); // Default to 1 month
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [tempMinMonths, setTempMinMonths] = useState(1);
+
     const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator();
     const [showReportPreview, setShowReportPreview] = useState(false);
 
@@ -28,6 +34,32 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
     const [runRecordsByPeriod, setRunRecordsByPeriod] = useState({});
     const [isFetchingYearDetails, setIsFetchingYearDetails] = useState(false);
     const [isFetchingBaseData, setIsFetchingBaseData] = useState(false);
+
+    // Fetch system setting for min months
+    useEffect(() => {
+        systemSettingAPI.get('13th_month_min_months')
+            .then(res => {
+                if (res.data && res.data.value) {
+                    const val = parseInt(res.data.value, 10);
+                    if (!isNaN(val)) {
+                        setMinMonthsRequired(val);
+                        setTempMinMonths(val);
+                    }
+                }
+            })
+            .catch(err => console.warn('Failed to fetch 13th month settings:', err));
+    }, []);
+
+    const handleSaveSettings = async () => {
+        try {
+            await systemSettingAPI.update('13th_month_min_months', tempMinMonths);
+            setMinMonthsRequired(tempMinMonths);
+            setShowSettingsModal(false);
+        } catch (error) {
+            console.error('Failed to save settings:', error);
+            // Optionally show a toast error
+        }
+    };
 
     useEffect(() => {
         // If no employees or payrolls passed in, fetch them
@@ -142,10 +174,34 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                 return Array.isArray(recs) ? recs : [];
             });
 
-        // Eligibility: joined on or before selected year; if unknown join date, include
+        // Create a Set of employee IDs that have payroll records in the selected year
+        const employeeIdsWithPayroll = new Set();
+        recordsForYear.forEach(record => {
+            const recEmpId = String(record?.empId ?? record?.employeeId ?? '');
+            if (recEmpId) employeeIdsWithPayroll.add(recEmpId);
+        });
+
+        // Eligibility: joined on or before selected year AND meets minimum months requirement
         const eligibleEmployees = employeeList.filter(emp => {
-            const jy = parseYear(emp.joiningDate);
-            return isNaN(jy) ? true : (jy <= selectedYearNum);
+            if (!emp.joiningDate) return true; // Assume eligible if no date
+            
+            const joinDate = new Date(emp.joiningDate);
+            if (isNaN(joinDate.getTime())) return true;
+
+            if (joinDate.getFullYear() > selectedYearNum) return false;
+
+            let monthsOfService = 12;
+            if (joinDate.getFullYear() === selectedYearNum) {
+                // Simple calculation: 12 - month index (0-11)
+                // e.g. Joined Jan (0) -> 12 months. Joined Dec (11) -> 1 month.
+                // Adjust based on day of month if needed, but this is standard pro-rating base
+                monthsOfService = 12 - joinDate.getMonth();
+                
+                // If joined after 15th, maybe don't count that month? 
+                // Keeping it simple for now as requested.
+            }
+
+            return monthsOfService >= minMonthsRequired;
         });
 
         const details = eligibleEmployees.map(emp => {
@@ -185,8 +241,11 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
             };
         });
 
-        // Exclude employees who have no computed 13th month pay yet
-        const filteredDetails = details.filter(emp => (emp.thirteenthMonthPay || 0) > 0);
+        // Filter: Must have at least one payroll record in the selected year
+        const filteredDetails = details.filter(emp => {
+             const canonicalEmpId = String(emp?.employee_id ?? emp?.employeeId ?? emp?.id ?? '');
+             return employeeIdsWithPayroll.has(canonicalEmpId);
+        });
         const totalPayout = filteredDetails.reduce((sum, emp) => sum + (emp.thirteenthMonthPay || 0), 0);
 
         return {
@@ -194,7 +253,7 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
             totalPayout,
             eligibleCount: filteredDetails.length,
         };
-    }, [year, localEmployees, localPayrolls, runRecordsByPeriod]);
+    }, [year, localEmployees, localPayrolls, runRecordsByPeriod, minMonthsRequired]);
 
     useEffect(() => {
         setStatuses(prev => {
@@ -321,6 +380,9 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                 <div className="summary-card-13th">
                     <div className="summary-label"><i className="bi bi-people-fill me-2"></i>Eligible Employees</div>
                     <div className="summary-value">{calculationResults.eligibleCount}</div>
+                    <div className="small text-muted mt-1" style={{fontSize: '0.75rem'}}>
+                        Min. {minMonthsRequired} month{minMonthsRequired !== 1 ? 's' : ''} service
+                    </div>
                 </div>
             </div>
             
@@ -344,6 +406,15 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                                 {uniqueYears.map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         </div>
+                        <button 
+                            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" 
+                            onClick={() => setShowSettingsModal(true)} 
+                            disabled={isCalculating}
+                            title="Configure Settings"
+                        >
+                            <i className="bi bi-gear-fill"></i>
+                            <span>Settings</span>
+                        </button>
                     </div>
                     <div className="controls-right d-flex gap-2">
                         <button className="btn btn-sm btn-success" onClick={() => setShowConfirmMarkAll(true)} disabled={isCalculating || filteredAndSortedDetails.length === 0}>
@@ -437,6 +508,42 @@ const ThirteenthMonthPage = ({ employees = [], payrolls = [] }) => {
                     pdfDataUri={pdfDataUri}
                     reportTitle={`13th Month Pay Report for ${year}`}
                 />
+            )}
+            
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">13th Month Configuration</h5>
+                                <button type="button" className="btn-close" onClick={() => setShowSettingsModal(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="mb-3">
+                                    <label className="form-label fw-bold">Minimum Months of Service Required</label>
+                                    <input 
+                                        type="number" 
+                                        className="form-control" 
+                                        min="0" 
+                                        max="12"
+                                        value={tempMinMonths}
+                                        onChange={(e) => setTempMinMonths(parseInt(e.target.value) || 0)}
+                                    />
+                                    <div className="form-text text-muted">
+                                        Employees must have worked at least this many months in the selected year to be eligible for 13th month pay.
+                                        <br/>
+                                        <small>Note: 0 or 1 usually means anyone employed is eligible (pro-rated).</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>Cancel</button>
+                                <button type="button" className="btn btn-primary" onClick={handleSaveSettings}>Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

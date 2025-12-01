@@ -36,6 +36,7 @@ use App\Http\Controllers\MLPredictionController;
 use App\Http\Controllers\PredictiveAnalyticsController;
 use App\Http\Controllers\ChatbotQAController;
 use App\Http\Controllers\StatutoryDeductionRuleController;
+use App\Http\Controllers\SystemSettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -370,6 +371,11 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
 
     // Predictive Analytics - optimized data endpoint
     Route::middleware(['role.access:performance,index'])->get('/predictive-analytics/data', [PredictiveAnalyticsController::class, 'getData']);
+
+    // System Settings
+    Route::middleware(['role.access:payroll,index'])->get('/system-settings', [SystemSettingController::class, 'index']);
+    Route::middleware(['role.access:payroll,index'])->get('/system-settings/{key}', [SystemSettingController::class, 'show']);
+    Route::middleware(['role.access:payroll,update'])->post('/system-settings', [SystemSettingController::class, 'store']);
 
     // Logout
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy']);
