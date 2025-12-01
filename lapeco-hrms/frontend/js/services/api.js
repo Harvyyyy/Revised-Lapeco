@@ -489,4 +489,11 @@ export const predictiveAnalyticsAPI = {
   getData: () => api.get('/predictive-analytics/data'),
 };
 
+// System Settings API calls
+export const systemSettingAPI = {
+  get: (key) => api.get(`/system-settings/${key}`),
+  getAll: () => api.get('/system-settings'),
+  update: (key, value) => api.post('/system-settings', { key, value }),
+};
+
 export default api;

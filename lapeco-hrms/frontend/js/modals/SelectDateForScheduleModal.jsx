@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { scheduleAPI } from '../services/api';
+import './SelectDateForScheduleModal.css';
 
 const SelectDateForScheduleModal = ({ show, onClose, onProceed, existingScheduleDates }) => {
   const MAX_DATES = 60;
@@ -141,68 +142,159 @@ const SelectDateForScheduleModal = ({ show, onClose, onProceed, existingSchedule
   }
 
   return (
-    <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
-      <div className="modal-dialog modal-dialog-centered">
+    <div className="modal fade show d-block select-date-modal" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <div className="modal-dialog modal-dialog-centered modal-lg">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">Select Date for New Schedule</h5>
+            <h5 className="modal-title"><i className="bi bi-calendar-week me-2"></i>Select Date for New Schedule</h5>
             <button type="button" className="btn-close" onClick={handleClose} aria-label="Close"></button>
           </div>
+          
           <div className="modal-body">
-            <p>Select one or more dates to create this schedule for.</p>
-            <div className="mb-3">
-              <label htmlFor="scheduleDate" className="form-label fw-bold">Add Date</label>
-              <div className="input-group">
-                <input 
-                  type="date" 
-                  className={`form-control ${error ? 'is-invalid' : ''}`} 
-                  id="scheduleDate" 
-                  value={inputDate} 
-                  onChange={handleDateChange} 
-                />
-                <button type="button" className="btn btn-outline-secondary" onClick={addDate} disabled={!inputDate}><i className="bi bi-plus-lg"></i> Add</button>
-              </div>
-            </div>
-            <div className="mb-3">
-              <div className="row g-2 align-items-end">
-                <div className="col">
-                  <label htmlFor="rangeStart" className="form-label fw-bold">Start Date</label>
-                  <input type="date" id="rangeStart" className="form-control" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
-                </div>
-                <div className="col">
-                  <label htmlFor="rangeEnd" className="form-label fw-bold">End Date</label>
-                  <input type="date" id="rangeEnd" className="form-control" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
-                </div>
-                <div className="col-auto">
-                  <button type="button" className="btn btn-outline-secondary" onClick={addRange} disabled={!rangeStart || !rangeEnd}><i className="bi bi-plus-lg"></i> Add Range</button>
-                </div>
-              </div>
-              <small className="text-muted d-block mt-1">You can select up to {MAX_DATES} dates.</small>
-            </div>
-            {selectedDates.length > 0 && (
-              <div className="mb-2">
-                <div className="d-flex justify-content-between align-items-center">
-                  <label className="form-label fw-bold mb-0">Selected Dates ({selectedDates.length})</label>
-                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedDates([])} disabled={!selectedDates.length}>Clear All</button>
-                </div>
-                <div className="d-flex flex-wrap gap-2">
-                  {selectedDates.map(d => (
-                    <span key={d} className="badge bg-secondary-subtle text-secondary-emphasis">
-                      {formatPrettyDate(d)}
-                      <button type="button" className="btn btn-sm btn-link ms-2" onClick={() => removeDate(d)} title="Remove">
-                        <i className="bi bi-x"></i>
-                      </button>
-                    </span>
-                  ))}
-                </div>
+            <p className="text-muted mb-4">Select one or more dates to create a schedule for. You can add individual dates or ranges.</p>
+            
+            {error && (
+              <div className="alert alert-danger d-flex align-items-center mb-4" role="alert">
+                <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                <div>{error}</div>
               </div>
             )}
-            {error && <div className="invalid-feedback d-block">{error}</div>}
+
+            <div className="row g-4">
+              {/* Left Column: Inputs */}
+              <div className="col-md-6">
+                {/* Add Single Date */}
+                <div className="mb-4">
+                  <div className="section-title">Add Single Date</div>
+                  <div className="input-group-custom">
+                    <div className="input-wrapper">
+                      <i className="bi bi-calendar"></i>
+                      <input 
+                        type="date" 
+                        className="form-control form-control-custom" 
+                        id="scheduleDate" 
+                        value={inputDate} 
+                        onChange={handleDateChange} 
+                      />
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn btn-outline-primary btn-add" 
+                      onClick={addDate} 
+                      disabled={!inputDate}
+                    >
+                      <i className="bi bi-plus-lg"></i> Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Add Date Range */}
+                <div>
+                  <div className="section-title">Add Date Range</div>
+                  <div className="date-range-container">
+                    <div className="mb-3">
+                      <label className="form-label small text-muted">Start Date</label>
+                      <div className="input-wrapper">
+                        <i className="bi bi-calendar-event"></i>
+                        <input 
+                          type="date" 
+                          className="form-control form-control-custom" 
+                          value={rangeStart} 
+                          onChange={(e) => setRangeStart(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label small text-muted">End Date</label>
+                      <div className="input-wrapper">
+                        <i className="bi bi-calendar-check"></i>
+                        <input 
+                          type="date" 
+                          className="form-control form-control-custom" 
+                          value={rangeEnd} 
+                          onChange={(e) => setRangeEnd(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn btn-outline-secondary btn-add w-100 justify-content-center" 
+                      onClick={addRange} 
+                      disabled={!rangeStart || !rangeEnd}
+                    >
+                      <i className="bi bi-arrows-angle-expand me-2"></i> Add Range
+                    </button>
+                  </div>
+                  <small className="text-muted d-block text-center">
+                    <i className="bi bi-info-circle me-1"></i>
+                    Max {MAX_DATES} dates selection allowed
+                  </small>
+                </div>
+              </div>
+
+              {/* Right Column: Selected Dates */}
+              <div className="col-md-6">
+                <div className="h-100 d-flex flex-column">
+                  <div className="selected-dates-header">
+                    <div className="section-title mb-0">Selected Dates ({selectedDates.length})</div>
+                    {selectedDates.length > 0 && (
+                      <button 
+                        type="button" 
+                        className="btn btn-sm btn-link text-danger text-decoration-none p-0" 
+                        onClick={() => setSelectedDates([])}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="selected-dates-area flex-grow-1">
+                    {selectedDates.length === 0 ? (
+                      <div className="empty-state h-100 d-flex flex-column justify-content-center align-items-center">
+                        <i className="bi bi-calendar-x fs-3 mb-2 text-muted opacity-50"></i>
+                        <p>No dates selected yet.</p>
+                      </div>
+                    ) : (
+                      <div className="d-flex flex-wrap">
+                        {selectedDates.map(d => (
+                          <span key={d} className="date-badge">
+                            {formatPrettyDate(d)}
+                            <button 
+                              type="button" 
+                              className="remove-btn" 
+                              onClick={() => removeDate(d)} 
+                              title="Remove"
+                            >
+                              <i className="bi bi-x-circle-fill"></i>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+
           <div className="modal-footer">
-            <button type="button" className="btn btn-outline-secondary" onClick={handleClose}>Cancel</button>
-            <button type="button" className="btn btn-success" onClick={handleProceed} disabled={checking || !selectedDates.length || !!error}>
-              {checking ? 'Checking...' : 'Proceed to Builder'} <i className="bi bi-arrow-right"></i>
+            <button type="button" className="btn btn-light border" onClick={handleClose}>Cancel</button>
+            <button 
+              type="button" 
+              className="btn btn-proceed" 
+              onClick={handleProceed} 
+              disabled={checking || selectedDates.length === 0}
+            >
+              {checking ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  Checking...
+                </>
+              ) : (
+                <>
+                  Proceed to Builder <i className="bi bi-arrow-right"></i>
+                </>
+              )}
             </button>
           </div>
         </div>
