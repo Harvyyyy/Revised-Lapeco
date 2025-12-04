@@ -42,7 +42,7 @@ const navItemsForModules = (modules = []) => {
     else if (path.includes('employee-data')) add(path, 'bi-people-fill', 'Employee Data');
     else if (path.includes('departments')) add(path, 'bi-diagram-3-fill', 'Department Management');
     else if (path.includes('positions')) add(path, 'bi-diagram-3', 'Positions');
-    else if (path.includes('attendance')) add(path, 'bi-calendar-check-fill', 'Attendance Management');
+    else if (path.includes('attendance-management')) add(path, 'bi-calendar-check-fill', 'Attendance Management');
     else if (path.includes('schedule-management')) add(path, 'bi-calendar-range', 'Schedules');
     else if (path.includes('leave-management')) add(path, 'bi-calendar-event', 'Leave Management');
     else if (path.startsWith('/dashboard/payroll')) add(path, 'bi-cash-coin', 'Payroll');
