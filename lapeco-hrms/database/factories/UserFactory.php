@@ -24,7 +24,7 @@ class UserFactory extends Factory
     public function definition(): array
     {
         $genders = ['Male', 'Female'];
-        $roleOptions = ['SUPER_ADMIN', 'TEAM_LEADER', 'REGULAR_EMPLOYEE'];
+        $roleOptions = ['SUPER_ADMIN', 'REGULAR_EMPLOYEE'];
 
         $firstName = $this->faker->firstName();
         $middleName = $this->faker->optional(0.4)->firstName();
@@ -41,6 +41,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'role' => fake()->randomElement($roleOptions),
+            'is_team_leader' => false,
             'position_id' => null,
             'joining_date' => $this->faker->dateTimeBetween('-10 years', 'now')->format('Y-m-d'),
             'birthday' => $this->faker->dateTimeBetween('-60 years', '-18 years')->format('Y-m-d'),
