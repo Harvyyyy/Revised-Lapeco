@@ -288,6 +288,7 @@ class PayrollController extends Controller
                 'pagIbigNo' => $employee?->pag_ibig_no,
                 'positionId' => $employee?->position_id,
                 'position' => $employee?->position?->name,
+                'monthlySalary' => $employee?->position?->monthly_salary,
                 'status' => $employee?->account_status,
             ],
         ]);
@@ -313,6 +314,20 @@ class PayrollController extends Controller
                     'end' => $existingPeriod->period_end->toDateString(),
                 ],
             ], 409);
+        }
+
+        // Check if limit of 2 payrolls per month is reached
+        $month = $periodEnd->month;
+        $year = $periodEnd->year;
+        
+        $payrollCount = PayrollPeriod::whereYear('period_end', $year)
+            ->whereMonth('period_end', $month)
+            ->count();
+            
+        if ($payrollCount >= 2) {
+            return response()->json([
+                'message' => 'The current month already has two payrolls. Any additional payroll should be generated for the next month.',
+            ], 400);
         }
 
         $result = DB::transaction(function () use ($periodStart, $startDate, $endDate) {
@@ -566,72 +581,46 @@ class PayrollController extends Controller
             try {
                 $sssResult = $this->deductionService->calculateDeduction('SSS', $monthlySalary);
                 $sssEe = $sssResult['employeeShare'] / 2; // Semi-monthly
+                $sssEr = $sssResult['employerShare'] / 2; // Semi-monthly
 
                 $philResult = $this->deductionService->calculateDeduction('PhilHealth', $monthlySalary);
                 $philEe = $philResult['employeeShare'] / 2; // Semi-monthly
+                $philEr = $philResult['employerShare'] / 2; // Semi-monthly
 
                 $pagResult = $this->deductionService->calculateDeduction('Pag-IBIG', $monthlySalary);
                 $pagEe = $pagResult['employeeShare'] / 2; // Semi-monthly
+                $pagEr = $pagResult['employerShare'] / 2; // Semi-monthly
 
                 $taxableSemi = max(0, (float) $payroll->gross_earning - ($sssEe + $philEe + $pagEe));
-                $taxResult = $this->deductionService->calculateDeduction('Tax', $taxableSemi, ['gross' => $taxableSemi]);
+                // Tax is calculated on the semi-monthly taxable income directly
+                $taxResult = $this->deductionService->calculateDeduction('Tax', $taxableSemi);
                 $tax = $taxResult['employeeShare'];
             } catch (\Exception $e) {
-                // Fallback to legacy calculation if dynamic rules fail
-                $sssEe = 0.0;
-                if ($monthlySalary >= 5000) {
-                    $msc = min($monthlySalary, 30000);
-                    if ($msc < 30000) {
-                        $remainder = $msc % 500;
-                        $msc = $remainder < 250 ? $msc - $remainder : $msc - $remainder + 500;
-                    }
-                    $sssEe = ($msc * 0.045) / 2;
-                }
-
-                $philEe = 0.0;
-                if ($monthlySalary >= 10000) {
-                    $philBase = min($monthlySalary, 100000);
-                    $philTotal = $philBase * 0.05;
-                    $philEe = ($philTotal / 2) / 2;
-                }
-
-                $pagEe = 0.0;
-                if ($monthlySalary >= 1500) {
-                    $pagEe = 100.0 / 2;
-                }
-
-                $taxableSemi = max(0, (float) $payroll->gross_earning - ($sssEe + $philEe + $pagEe));
-                $tax = 0.0;
-                if ($taxableSemi <= 10417) {
-                    $tax = 0.0;
-                } elseif ($taxableSemi <= 16666) {
-                    $tax = ($taxableSemi - 10417) * 0.15;
-                } elseif ($taxableSemi <= 33332) {
-                    $tax = 937.50 + ($taxableSemi - 16667) * 0.20;
-                } elseif ($taxableSemi <= 83332) {
-                    $tax = 4270.70 + ($taxableSemi - 33333) * 0.25;
-                } elseif ($taxableSemi <= 333332) {
-                    $tax = 16770.70 + ($taxableSemi - 83333) * 0.30;
-                } else {
-                    $tax = 91770.70 + ($taxableSemi - 333333) * 0.35;
-                }
+                \Illuminate\Support\Facades\Log::error("Failed to backfill statutory deductions for payroll {$payroll->id}: " . $e->getMessage());
+                $sssEe = 0;
+                $sssEr = 0;
+                $philEe = 0;
+                $philEr = 0;
+                $pagEe = 0;
+                $pagEr = 0;
+                $tax = 0;
             }
 
             $payroll->statutoryRequirements()->updateOrCreate(
                 ['requirement_type' => 'SSS'],
-                ['requirement_amount' => round($sssEe, 2)]
+                ['requirement_amount' => round($sssEe, 2), 'employer_amount' => round($sssEr, 2)]
             );
             $payroll->statutoryRequirements()->updateOrCreate(
                 ['requirement_type' => 'PhilHealth'],
-                ['requirement_amount' => round($philEe, 2)]
+                ['requirement_amount' => round($philEe, 2), 'employer_amount' => round($philEr, 2)]
             );
             $payroll->statutoryRequirements()->updateOrCreate(
                 ['requirement_type' => 'Pag-IBIG'],
-                ['requirement_amount' => round($pagEe, 2)]
+                ['requirement_amount' => round($pagEe, 2), 'employer_amount' => round($pagEr, 2)]
             );
             $payroll->statutoryRequirements()->updateOrCreate(
                 ['requirement_type' => 'Tax'],
-                ['requirement_amount' => round(max(0, $tax), 2)]
+                ['requirement_amount' => round(max(0, $tax), 2), 'employer_amount' => 0]
             );
 
             $other = $payroll->deductions()->get()->sum(function ($d) {
@@ -798,6 +787,31 @@ class PayrollController extends Controller
         ];
 
         return response()->json($payload);
+    }
+
+    public function calculateDeductions(Request $request)
+    {
+        $request->validate([
+            'gross_pay' => 'required|numeric|min:0',
+            'period_id' => 'nullable|exists:payroll_periods,id'
+        ]);
+
+        $gross = (float) $request->gross_pay;
+
+        try {
+            $results = $this->deductionService->calculateAllDeductions($gross);
+            
+            return response()->json([
+                'data' => [
+                    'sss' => $results['SSS'],
+                    'philhealth' => $results['PhilHealth'],
+                    'hdmf' => $results['Pag-IBIG'],
+                    'tax' => $results['Tax']
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
+        }
     }
 
     public function myProjection(Request $request): JsonResponse
@@ -1325,56 +1339,66 @@ class PayrollController extends Controller
         }
 
         $monthlySalary = (float) ($position?->monthly_salary ?? 0);
+        // Fallback to base rate calculation if monthly salary is not set
+        if ($monthlySalary <= 0 && $position?->base_rate_per_hour) {
+            $monthlySalary = (float) $position->base_rate_per_hour * 22 * 8;
+        }
+
         if ($monthlySalary > 0) {
-            $sssEe = 0.0;
-            if ($monthlySalary >= 5000) {
-                $msc = min($monthlySalary, 30000);
-                if ($msc < 30000) {
-                    $remainder = $msc % 500;
-                    $msc = $remainder < 250 ? $msc - $remainder : $msc - $remainder + 500;
-                }
-                $sssEe = ($msc * 0.045) / 2;
+            try {
+                // Calculate Statutory Deductions using Service (Dynamic Rules)
+                // Note: Rules return monthly amounts. For semi-monthly payroll, we divide by 2.
+                
+                $sssResult = $this->deductionService->calculateDeduction('SSS', $monthlySalary);
+                $sssEe = $sssResult['employeeShare'] / 2;
+                $sssEr = $sssResult['employerShare'] / 2;
+
+                $philResult = $this->deductionService->calculateDeduction('PhilHealth', $monthlySalary);
+                $philEe = $philResult['employeeShare'] / 2;
+                $philEr = $philResult['employerShare'] / 2;
+
+                $pagResult = $this->deductionService->calculateDeduction('Pag-IBIG', $monthlySalary);
+                $pagEe = $pagResult['employeeShare'] / 2;
+                $pagEr = $pagResult['employerShare'] / 2;
+
+                // Tax Calculation
+                // Tax is based on taxable income (Gross - Deductions)
+                // NOTE: We use the ACTUAL Gross from this payroll period for Tax, not monthly salary
+                $taxableIncome = max(0, $gross - ($sssEe + $philEe + $pagEe));
+                
+                // For Tax, the service expects taxable income. 
+                // Our seeded Tax rules are Semi-Monthly brackets.
+                // So we pass the semi-monthly taxable income directly.
+                $taxResult = $this->deductionService->calculateDeduction('Tax', $taxableIncome);
+                $tax = $taxResult['employeeShare'];
+                
+            } catch (\Exception $e) {
+                // Log error and default to 0 to prevent crash
+                \Illuminate\Support\Facades\Log::error("Failed to calculate statutory deductions for user {$user->id}: " . $e->getMessage());
+                $sssEe = 0;
+                $sssEr = 0;
+                $philEe = 0;
+                $philEr = 0;
+                $pagEe = 0;
+                $pagEr = 0;
+                $tax = 0;
             }
-            $philEe = 0.0;
-            if ($monthlySalary >= 10000) {
-                $philBase = min($monthlySalary, 100000);
-                $philTotal = $philBase * 0.05;
-                $philEe = ($philTotal / 2) / 2;
-            }
-            $pagEe = 0.0;
-            if ($monthlySalary >= 1500) {
-                $pagEe = 100.0 / 2;
-            }
-            $taxableSemi = max(0, $gross - ($sssEe + $philEe + $pagEe));
-            $tax = 0.0;
-            if ($taxableSemi <= 10417) {
-                $tax = 0.0;
-            } elseif ($taxableSemi <= 16666) {
-                $tax = ($taxableSemi - 10417) * 0.15;
-            } elseif ($taxableSemi <= 33332) {
-                $tax = 937.50 + ($taxableSemi - 16667) * 0.20;
-            } elseif ($taxableSemi <= 83332) {
-                $tax = 4270.70 + ($taxableSemi - 33333) * 0.25;
-            } elseif ($taxableSemi <= 333332) {
-                $tax = 16770.70 + ($taxableSemi - 83333) * 0.30;
-            } else {
-                $tax = 91770.70 + ($taxableSemi - 333333) * 0.35;
-            }
+
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'SSS'],
-                ['requirement_amount' => round($sssEe, 2)]
+                ['requirement_amount' => round($sssEe, 2), 'employer_amount' => round($sssEr, 2)]
             );
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'PhilHealth'],
-                ['requirement_amount' => round($philEe, 2)]
+                ['requirement_amount' => round($philEe, 2), 'employer_amount' => round($philEr, 2)]
             );
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'Pag-IBIG'],
-                ['requirement_amount' => round($pagEe, 2)]
+                ['requirement_amount' => round($pagEe, 2), 'employer_amount' => round($pagEr, 2)]
             );
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'Tax'],
-                ['requirement_amount' => round(max(0, $tax), 2)]
+                ['requirement_amount' => round(max(0, $tax), 2), 'employer_amount' => 0]
             );
             $totalDeductions += round($sssEe + $philEe + $pagEe + max(0, $tax), 2);
             $employeePayroll->total_deductions = round($totalDeductions, 2);

@@ -7,133 +7,153 @@ const MOCK_COMPANY_INFO = {
 };
 
 /**
- * SSS (Social Security System) Contribution Calculator
- * Rate: 14% of Monthly Salary Credit (MSC)
- * Split: Employer 9.5% | Employee 4.5%
- * MSC Range: ₱3,000 to ₱30,000
- * Maximum Employee Share: ₱1,350/month (4.5% of ₱30,000)
+ * Evaluate a simple math formula string.
+ * Supported vars: salary, gross, basic, semi_gross
+ * Supported functions: min, max, abs, round, floor, ceil
  */
-export const calculateSssContribution = (salary, isProvisional = false) => {
-    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
-    if (monthlyEquivalent < 5000) {
-        return { employeeShare: 0, employerShare: 0, total: 0 };
-    }
-    let msc = Math.min(monthlyEquivalent, 30000);
-    if (msc < 30000) {
-        const remainder = msc % 500;
-        msc = remainder < 250 ? msc - remainder : msc - remainder + 500;
-    }
-    const monthlyEmployeeShare = msc * 0.045;
-    const monthlyEmployerShare = msc * 0.095;
-    const divisor = isProvisional ? 2 : 1;
-    return {
-        employeeShare: monthlyEmployeeShare / divisor,
-        employerShare: monthlyEmployerShare / divisor,
-        total: (monthlyEmployeeShare + monthlyEmployerShare) / divisor,
-    };
-};
-
-/**
- * PhilHealth Contribution Calculator (2024)
- * Rate: 5.0% of monthly salary
- * Split: 50% employer, 50% employee (2.5% each)
- * Income Floor: ₱10,000 (Minimum salary considered)
- * Income Ceiling: ₱100,000 (Maximum salary considered)
- * Employee Share Range: ₱250/month (min) to ₱2,500/month (max)
- */
-export const calculatePhilhealthContribution = (salary, isProvisional = false) => {
-    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
-    if (monthlyEquivalent < 10000) {
-        return { employeeShare: 0, employerShare: 0, total: 0 };
-    }
-    const rate = 0.05;
-    const incomeCeiling = 100000;
-    const baseSalary = Math.min(monthlyEquivalent, incomeCeiling);
-    const totalPremium = baseSalary * rate;
-    const divisor = isProvisional ? 2 : 1;
-    return {
-        employeeShare: (totalPremium / 2) / divisor,
-        employerShare: (totalPremium / 2) / divisor,
-        total: totalPremium / divisor,
-    };
-};
-
-/**
- * Pag-IBIG Fund Contribution Calculator
- * Employee Contribution: 1% (if earning ≤₱1,500) or 2% (if earning >₱1,500)
- * Employer Contribution: 2%
- * Maximum monthly compensation considered: ₱5,000
- * Max Employee Share: ₱100/month
- * Max Employer Share: ₱100/month
- */
-export const calculatePagibigContribution = (salary, isProvisional = false) => {
-    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
-    if (monthlyEquivalent < 1500) {
-        return { employeeShare: 0, employerShare: 0, total: 0 };
-    }
-    const monthlyEmployeeShare = 100;
-    const monthlyEmployerShare = 200;
-    const divisor = isProvisional ? 2 : 1;
-    return {
-        employeeShare: monthlyEmployeeShare / divisor,
-        employerShare: monthlyEmployerShare / divisor,
-        total: (monthlyEmployeeShare + monthlyEmployerShare) / divisor,
-    };
-};
-
-/**
- * Withholding Tax Calculator (TRAIN Law)
- * 
- * Annual Tax Brackets:
- * ₱250,000 and below: 0%
- * Over ₱250,000 up to ₱400,000: 15% of excess over ₱250,000
- * Over ₱400,000 up to ₱800,000: ₱22,500 + 20% of excess over ₱400,000
- * Over ₱800,000 up to ₱2,000,000: ₱102,500 + 25% of excess over ₱800,000
- * Over ₱2,000,000 up to ₱8,000,000: ₱402,500 + 30% of excess over ₱2,000,000
- * Over ₱8,000,000: ₱2,202,500 + 35% of excess over ₱8,000,000
- * 
- * Note: Taxable income = Gross - SSS - PhilHealth - Pag-IBIG - Other non-taxable benefits
- * Semi-monthly brackets (Annual ÷ 24):
- */
-export const calculateTin = (taxableSemiMonthlySalary) => {
-    let tax = 0;
+const evaluateFormula = (formula, variables) => {
+    if (!formula) return 0;
     
-    // ₱250,000/year ÷ 24 = ₱10,417 (0% tax)
-    if (taxableSemiMonthlySalary <= 10417) {
-        tax = 0;
+    // Replace variables
+    let parsed = formula
+        .replace(/salary/g, variables.salary)
+        .replace(/gross/g, variables.gross)
+        .replace(/basic/g, variables.basic)
+        .replace(/semi_gross/g, variables.semi_gross);
+        
+    // Replace functions
+    parsed = parsed
+        .replace(/min\(/g, 'Math.min(')
+        .replace(/max\(/g, 'Math.max(')
+        .replace(/abs\(/g, 'Math.abs(')
+        .replace(/round\(/g, 'Math.round(')
+        .replace(/floor\(/g, 'Math.floor(')
+        .replace(/ceil\(/g, 'Math.ceil(');
+        
+    try {
+        // Safety check: only allow math characters
+        if (!/^[\d\s\+\-\*\/\(\)\.\,Math\>\<\=\?:]+$/.test(parsed)) {
+            console.error('Unsafe formula characters detected:', parsed);
+            return 0;
+        }
+        return new Function('return ' + parsed)();
+    } catch (e) {
+        console.error('Formula evaluation failed:', e);
+        return 0;
     }
-    // Over ₱10,417 up to ₱16,666 (15%)
-    else if (taxableSemiMonthlySalary <= 16666) {
-        tax = (taxableSemiMonthlySalary - 10417) * 0.15;
-    }
-    // Over ₱16,667 up to ₱33,332 (20%)
-    else if (taxableSemiMonthlySalary <= 33332) {
-        tax = 937.50 + (taxableSemiMonthlySalary - 16667) * 0.20;
-    }
-    // Over ₱33,333 up to ₱83,332 (25%)
-    else if (taxableSemiMonthlySalary <= 83332) {
-        tax = 4270.70 + (taxableSemiMonthlySalary - 33333) * 0.25;
-    }
-    // Over ₱83,333 up to ₱333,332 (30%)
-    else if (taxableSemiMonthlySalary <= 333332) {
-        tax = 16770.70 + (taxableSemiMonthlySalary - 83333) * 0.30;
-    }
-    // Over ₱333,333 (35%)
-    else {
-        tax = 91770.70 + (taxableSemiMonthlySalary - 333333) * 0.35;
-    }
-    
-    return { taxWithheld: tax > 0 ? tax : 0 };
 };
 
-export const generateSssData = (employees, aggregatedRecords, month, isProvisional) => {
+/**
+ * Generic Statutory Deduction Calculator
+ * Uses the provided rule object to calculate deductions.
+ */
+export const calculateDeductionFromRule = (salary, rule, isProvisional = false) => {
+    if (!rule) return { employeeShare: 0, employerShare: 0, total: 0 };
+
+    const monthlyEquivalent = isProvisional ? salary * 2 : salary;
+    const context = {
+        salary: monthlyEquivalent,
+        gross: monthlyEquivalent,
+        basic: monthlyEquivalent,
+        semi_gross: salary, // Actual semi-monthly pay
+    };
+
+    let employeeShare = 0;
+    let employerShare = 0;
+
+    // 1. Fixed Percentage
+    if (rule.rule_type === 'fixed_percentage') {
+        if (rule.minimum_salary && monthlyEquivalent < rule.minimum_salary) {
+            return { employeeShare: 0, employerShare: 0, total: 0 };
+        }
+
+        let applicableSalary = monthlyEquivalent;
+        if (rule.maximum_salary && monthlyEquivalent > rule.maximum_salary) {
+            applicableSalary = rule.maximum_salary;
+        }
+
+        employeeShare = (applicableSalary * (rule.fixed_percentage / 100));
+    }
+
+    // 2. Salary Bracket
+    else if (rule.rule_type === 'salary_bracket' && rule.brackets) {
+        if (rule.minimum_salary && monthlyEquivalent < rule.minimum_salary) {
+            return { employeeShare: 0, employerShare: 0, total: 0 };
+        }
+
+        const brackets = [...rule.brackets].sort((a, b) => a.sort_order - b.sort_order);
+        
+        for (const bracket of brackets) {
+            const from = parseFloat(bracket.salary_from);
+            const to = bracket.salary_to ? parseFloat(bracket.salary_to) : Infinity;
+
+            if (monthlyEquivalent >= from && monthlyEquivalent <= to) {
+                // Determine base for calculation (Salary or MSC/Regular SS)
+                let calculationBase = monthlyEquivalent;
+                
+                // If regular_ss (MSC) is defined in the bracket, use it as the base
+                if (bracket.regular_ss && parseFloat(bracket.regular_ss) > 0) {
+                    calculationBase = parseFloat(bracket.regular_ss);
+                } else if (rule.maximum_salary && calculationBase > rule.maximum_salary) {
+                    // Fallback to max salary cap if no MSC is defined
+                    calculationBase = rule.maximum_salary;
+                }
+
+                // Employee Share
+                if (bracket.fixed_amount > 0) {
+                    employeeShare = parseFloat(bracket.fixed_amount);
+                } else {
+                    employeeShare = calculationBase * (bracket.employee_rate / 100);
+                }
+
+                // Employer Share
+                if (bracket.fixed_employer_amount > 0) {
+                    employerShare = parseFloat(bracket.fixed_employer_amount);
+                } else {
+                    employerShare = calculationBase * (bracket.employer_rate / 100);
+                }
+                break; 
+            }
+        }
+    }
+
+    // 3. Custom Formula
+    else if (rule.rule_type === 'custom_formula' && rule.formula) {
+        if (rule.formula.employee_formula) {
+            employeeShare = evaluateFormula(rule.formula.employee_formula, context);
+        }
+        if (rule.formula.employer_formula) {
+            employerShare = evaluateFormula(rule.formula.employer_formula, context);
+        }
+    }
+
+    // Final Adjustments
+    const divisor = isProvisional ? 2 : 1;
+    
+    // Special handling for Tax (it's usually calculated on the actual semi-monthly income, not monthly equivalent)
+    // If the rule is for Tax, we might need to respect that.
+    // However, standard statutory rules (SSS/PH/HDMF) are monthly based.
+    // If this is Tax, and the rule type is 'salary_bracket' (Tax Table), 
+    // we might need to pass 'semi_gross' as the testing value if the brackets are semi-monthly.
+    // BUT, the system assumes rules are stored as Monthly or Annual usually.
+    // For now, assuming standard monthly calculation divided by 2 for semi-monthly payroll.
+    
+    return {
+        employeeShare: parseFloat((employeeShare / divisor).toFixed(2)),
+        employerShare: parseFloat((employerShare / divisor).toFixed(2)),
+        total: parseFloat(((employeeShare + employerShare) / divisor).toFixed(2)),
+    };
+};
+
+export const generateSssData = (employees, aggregatedRecords, month, isProvisional, activeRules = []) => {
     const employeeMap = new Map(employees.map(e => [e.id, e]));
+    const sssRule = activeRules.find(r => r.deduction_type === 'SSS');
 
     const rows = aggregatedRecords.map((record, index) => {
         const emp = employeeMap.get(record.empId);
         if (!emp) return null;
         
-        const contribution = calculateSssContribution(record.totalGross, isProvisional);
+        const contribution = calculateDeductionFromRule(record.totalGross, sssRule, isProvisional);
 
         return {
             no: index + 1,
@@ -168,14 +188,15 @@ export const generateSssData = (employees, aggregatedRecords, month, isProvision
     };
 };
 
-export const generatePhilhealthData = (employees, aggregatedRecords, month, isProvisional) => {
+export const generatePhilhealthData = (employees, aggregatedRecords, month, isProvisional, activeRules = []) => {
     const employeeMap = new Map(employees.map(e => [e.id, e]));
+    const philHealthRule = activeRules.find(r => r.deduction_type === 'PhilHealth');
     
     const rows = aggregatedRecords.map((record, index) => {
         const emp = employeeMap.get(record.empId);
         if (!emp) return null;
 
-        const contribution = calculatePhilhealthContribution(record.totalGross, isProvisional);
+        const contribution = calculateDeductionFromRule(record.totalGross, philHealthRule, isProvisional);
         
         return {
             no: index + 1,
@@ -209,14 +230,15 @@ export const generatePhilhealthData = (employees, aggregatedRecords, month, isPr
     };
 };
 
-export const generatePagibigData = (employees, aggregatedRecords, month, isProvisional) => {
+export const generatePagibigData = (employees, aggregatedRecords, month, isProvisional, activeRules = []) => {
     const employeeMap = new Map(employees.map(e => [e.id, e]));
+    const pagIbigRule = activeRules.find(r => r.deduction_type === 'Pag-IBIG');
     
     const rows = aggregatedRecords.map((record, index) => {
         const emp = employeeMap.get(record.empId);
         if (!emp) return null;
 
-        const contribution = calculatePagibigContribution(record.totalGross, isProvisional);
+        const contribution = calculateDeductionFromRule(record.totalGross, pagIbigRule, isProvisional);
 
         return {
             no: index + 1,
@@ -229,7 +251,7 @@ export const generatePagibigData = (employees, aggregatedRecords, month, isProvi
             totalContribution: contribution.total,
         };
     }).filter(Boolean);
-    
+
     return {
         title: 'Pag-IBIG Contribution Report',
         headerData: {
@@ -238,7 +260,7 @@ export const generatePagibigData = (employees, aggregatedRecords, month, isProvi
         },
         columns: [
             { key: 'no', label: 'No.', editable: false, isPermanent: true },
-            { key: 'pagibigNo', label: 'Pag-IBIG MID No.', editable: false, isPermanent: true },
+            { key: 'pagibigNo', label: 'Pag-IBIG Number', editable: false, isPermanent: true },
             { key: 'lastName', label: 'Last Name', editable: false, isPermanent: true },
             { key: 'firstName', label: 'First Name', editable: false, isPermanent: true },
             { key: 'middleName', label: 'Middle Name', editable: false, isPermanent: true },
