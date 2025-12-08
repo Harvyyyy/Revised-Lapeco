@@ -1,24 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { generateSssData, generatePhilhealthData, generatePagibigData } from '../../hooks/contributionUtils';
 import ContributionTypeToggle from '../pages/Contributions-Management/ContributionTypeToggle';
+import api from '../services/api';
 
 const ViewContributionsModal = ({ show, onClose, run, employees, positions }) => {
     const [activeReport, setActiveReport] = useState('sss');
     const [reportData, setReportData] = useState({ columns: [], rows: [] });
+    const [activeRules, setActiveRules] = useState([]);
 
     useEffect(() => {
-        if (run) {
+        if (show) {
+            const fetchRules = async () => {
+                try {
+                    const response = await api.get('/statutory-deduction-rules');
+                    setActiveRules(response.data?.data || []);
+                } catch (error) {
+                    console.error('Failed to fetch statutory rules:', error);
+                }
+            };
+            fetchRules();
+        }
+    }, [show]);
+
+    useEffect(() => {
+        if (run && activeRules.length > 0) {
             let data;
+            // Assuming 'run' acts as 'month' and isProvisional is false for archived reports
             if (activeReport === 'sss') {
-                data = generateSssData(employees, positions, run);
+                data = generateSssData(employees, positions, run, false, activeRules);
             } else if (activeReport === 'philhealth') {
-                data = generatePhilhealthData(employees, positions, run);
+                data = generatePhilhealthData(employees, positions, run, false, activeRules);
             } else {
-                data = generatePagibigData(employees, positions, run);
+                data = generatePagibigData(employees, positions, run, false, activeRules);
             }
             setReportData(data);
         }
-    }, [run, activeReport, employees, positions]);
+    }, [run, activeReport, employees, positions, activeRules]);
 
     if (!show) return null;
 

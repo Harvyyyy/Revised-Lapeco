@@ -14,18 +14,22 @@ class StatutoryDeductionBracket extends Model
         'rule_id',
         'salary_from',
         'salary_to',
+        'regular_ss',
         'employee_rate',
         'employer_rate',
         'fixed_amount',
+        'fixed_employer_amount',
         'sort_order',
     ];
 
     protected $casts = [
         'salary_from' => 'decimal:2',
         'salary_to' => 'decimal:2',
+        'regular_ss' => 'decimal:2',
         'employee_rate' => 'decimal:2',
         'employer_rate' => 'decimal:2',
         'fixed_amount' => 'decimal:2',
+        'fixed_employer_amount' => 'decimal:2',
     ];
 
     public function rule(): BelongsTo

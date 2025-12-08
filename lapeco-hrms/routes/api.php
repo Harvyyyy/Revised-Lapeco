@@ -213,6 +213,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::middleware(['role.access:payroll,index'])->get('/payroll/periods/{periodId}/details', [PayrollController::class, 'showRunDetails']);
     Route::middleware(['role.access:payroll,index'])->get('/payroll/records/{payrollId}', [PayrollController::class, 'showPayrollRecord']);
     Route::middleware(['role.access:payroll,index'])->get('/payroll/compute', [PayrollController::class, 'compute']);
+    Route::middleware(['role.access:payroll,index'])->post('/payroll/calculate-deductions', [PayrollController::class, 'calculateDeductions']);
     Route::middleware(['role.access:payroll,index'])->get('/payroll/my-projection', [PayrollController::class, 'myProjection']);
     Route::middleware(['role.access:payroll,store'])->post('/payroll/generate', [PayrollController::class, 'generate']);
     Route::middleware(['role.access:payroll,update'])->put('/payroll/{payroll}', [PayrollController::class, 'update']);
@@ -230,6 +231,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::get('/statutory-deduction-rules', [StatutoryDeductionRuleController::class, 'index']);
     Route::get('/statutory-deduction-rules/active/summary', [StatutoryDeductionRuleController::class, 'getActiveRulesSummary']);
     Route::get('/statutory-deduction-rules/{id}', [StatutoryDeductionRuleController::class, 'show']);
+    Route::get('/statutory-deduction-rules/{id}/history', [StatutoryDeductionRuleController::class, 'getHistory']);
     Route::post('/statutory-deduction-rules', [StatutoryDeductionRuleController::class, 'store']);
     Route::put('/statutory-deduction-rules/{id}', [StatutoryDeductionRuleController::class, 'update']);
     Route::delete('/statutory-deduction-rules/{id}', [StatutoryDeductionRuleController::class, 'destroy']);

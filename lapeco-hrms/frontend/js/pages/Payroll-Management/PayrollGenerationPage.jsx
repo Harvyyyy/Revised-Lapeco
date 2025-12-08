@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import IncomeBreakdownModal from '../../modals/IncomeBreakdownModal';
-import { calculateSssContribution, calculatePhilhealthContribution, calculatePagibigContribution, calculateTin } from '../../hooks/contributionUtils';
 import { calculateLatenessDeductions } from '../../hooks/payrollUtils';
 import { payrollAPI } from '../../services/api';
 import ToastNotification from '../../common/ToastNotification';

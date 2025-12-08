@@ -21,64 +21,6 @@ class ContributionController extends Controller
     }
 
     /**
-     * Calculate SSS contribution based on monthly salary (legacy fallback)
-     */
-    private function calculateSssContribution($monthlySalary)
-    {
-        if ($monthlySalary < 5000) {
-            return [ 'employeeShare' => 0.0, 'employerShare' => 0.0, 'total' => 0.0 ];
-        }
-        $msc = min($monthlySalary, 30000);
-        if ($msc < 30000) {
-            $remainder = $msc % 500;
-            $msc = $remainder < 250 ? $msc - $remainder : $msc - $remainder + 500;
-        }
-        $employeeShare = $msc * 0.045;
-        $employerShare = $msc * 0.095;
-        return [
-            'employeeShare' => round($employeeShare, 2),
-            'employerShare' => round($employerShare, 2),
-            'total' => round($employeeShare + $employerShare, 2),
-        ];
-    }
-
-    /**
-     * Calculate PhilHealth contribution based on monthly salary (legacy fallback)
-     */
-    private function calculatePhilhealthContribution($monthlySalary)
-    {
-        if ($monthlySalary < 10000) {
-            return [ 'employeeShare' => 0.0, 'employerShare' => 0.0, 'total' => 0.0 ];
-        }
-        $rate = 0.05;
-        $incomeCeiling = 100000;
-        $baseSalary = min($monthlySalary, $incomeCeiling);
-        $totalPremium = $baseSalary * $rate;
-        return [
-            'employeeShare' => round($totalPremium / 2, 2),
-            'employerShare' => round($totalPremium / 2, 2),
-            'total' => round($totalPremium, 2),
-        ];
-    }
-
-    /**
-     * Calculate Pag-IBIG contribution based on monthly salary (legacy fallback)
-     */
-    private function calculatePagibigContribution($monthlySalary)
-    {
-        if ($monthlySalary < 1500) {
-            return [ 'employeeShare' => 0.0, 'employerShare' => 0.0, 'total' => 0.0 ];
-        }
-        $employeeShare = 100.0;
-        $employerShare = 200.0;
-        return [
-            'employeeShare' => round($employeeShare, 2),
-            'employerShare' => round($employerShare, 2),
-            'total' => round($employeeShare + $employerShare, 2),
-        ];
-    }
-
-    /**
      * Get contribution report for a specific month
      */
     public function getMonthlyContributions(Request $request)
@@ -164,8 +106,11 @@ class ContributionController extends Controller
                         'totalGross' => 0.0,
                         'totalTax' => 0.0,
                         'sssEe' => 0.0,
+                        'sssEr' => 0.0,
                         'philEe' => 0.0,
+                        'philEr' => 0.0,
                         'pagEe' => 0.0,
+                        'pagEr' => 0.0,
                     ];
                 }
                 
@@ -173,20 +118,23 @@ class ContributionController extends Controller
                 $semiGross = (float) $payroll->gross_earning;
                 $employeeData[$empId]['totalGross'] += $semiGross;
 
-                // Compute semi-monthly statutory from period earned gross so report matches modal
-                $sss = $this->calculateSssContribution($semiGross * 2);
-                $employeeData[$empId]['sssEe'] += round(($sss['employeeShare'] ?? 0.0) / 2, 2);
-
-                $phil = $this->calculatePhilhealthContribution($semiGross * 2);
-                $employeeData[$empId]['philEe'] += round(($phil['employeeShare'] ?? 0.0) / 2, 2);
-
-                $pag = $this->calculatePagibigContribution($semiGross * 2);
-                $employeeData[$empId]['pagEe'] += round(($pag['employeeShare'] ?? 0.0) / 2, 2);
-
-                // Tax withheld from statutory requirements if present
+                // Sum statutory requirements from database (Historical Integrity)
                 foreach ($payroll->statutoryRequirements as $req) {
-                    if (strtolower($req->requirement_type) === 'tax') {
-                        $employeeData[$empId]['totalTax'] += (float) $req->requirement_amount;
+                    $type = strtolower($req->requirement_type);
+                    $amount = (float) $req->requirement_amount;
+                    $employerAmount = (float) $req->employer_amount;
+
+                    if ($type === 'sss') {
+                        $employeeData[$empId]['sssEe'] += $amount;
+                        $employeeData[$empId]['sssEr'] += $employerAmount;
+                    } elseif ($type === 'philhealth') {
+                        $employeeData[$empId]['philEe'] += $amount;
+                        $employeeData[$empId]['philEr'] += $employerAmount;
+                    } elseif ($type === 'pag-ibig') {
+                        $employeeData[$empId]['pagEe'] += $amount;
+                        $employeeData[$empId]['pagEr'] += $employerAmount;
+                    } elseif ($type === 'tax') {
+                        $employeeData[$empId]['totalTax'] += $amount;
                     }
                 }
             }
@@ -211,31 +159,32 @@ class ContributionController extends Controller
 
             switch ($validated['type']) {
                 case 'sss':
-                    // Reflect actual employee deductions from payroll; derive employer share via rule (9.5% vs 4.5%).
                     $ee = round($data['sssEe'], 2);
-                    $employerShare = round($ee * (9.5 / 4.5), 2);
+                    $er = round($data['sssEr'], 2);
                     $contribution = [
                         'employeeShare' => $ee,
-                        'employerShare' => $employerShare,
-                        'total' => round($ee + $employerShare, 2),
+                        'employerShare' => $er,
+                        'total' => round($ee + $er, 2),
                     ];
                     $govtId = $employee->sss_no ?? '';
                     break;
                 case 'philhealth':
                     $ee = round($data['philEe'], 2);
+                    $er = round($data['philEr'], 2);
                     $contribution = [
                         'employeeShare' => $ee,
-                        'employerShare' => $ee,
-                        'total' => round($ee * 2, 2),
+                        'employerShare' => $er,
+                        'total' => round($ee + $er, 2),
                     ];
                     $govtId = $employee->philhealth_no ?? '';
                     break;
                 case 'pagibig':
                     $ee = round($data['pagEe'], 2);
+                    $er = round($data['pagEr'], 2);
                     $contribution = [
                         'employeeShare' => $ee,
-                        'employerShare' => round($ee * 2, 2),
-                        'total' => round($ee * 3, 2),
+                        'employerShare' => $er,
+                        'total' => round($ee + $er, 2),
                     ];
                     $govtId = $employee->pag_ibig_no ?? '';
                     break;
