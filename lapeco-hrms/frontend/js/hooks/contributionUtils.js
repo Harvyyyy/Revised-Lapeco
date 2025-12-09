@@ -119,11 +119,23 @@ export const calculateDeductionFromRule = (salary, rule, isProvisional = false) 
 
     // 3. Custom Formula
     else if (rule.rule_type === 'custom_formula' && rule.formula) {
-        if (rule.formula.employee_formula) {
-            employeeShare = evaluateFormula(rule.formula.employee_formula, context);
+        let formulaObj = rule.formula;
+        
+        // Parse JSON string if needed
+        if (typeof formulaObj === 'string') {
+            try {
+                formulaObj = JSON.parse(formulaObj);
+            } catch (e) {
+                console.error('Failed to parse formula JSON:', e);
+                formulaObj = {};
+            }
         }
-        if (rule.formula.employer_formula) {
-            employerShare = evaluateFormula(rule.formula.employer_formula, context);
+
+        if (formulaObj.employee_formula) {
+            employeeShare = evaluateFormula(formulaObj.employee_formula, context);
+        }
+        if (formulaObj.employer_formula) {
+            employerShare = evaluateFormula(formulaObj.employer_formula, context);
         }
     }
 

@@ -540,3 +540,26 @@
     margin-top: 0.5rem;
   }
 }
+
+/* Skeleton Loading Animation */
+.payroll-page-container .skeleton-card {
+  pointer-events: none;
+  cursor: default;
+}
+
+.payroll-page-container .skeleton-box, 
+.payroll-page-container .skeleton-text {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+.payroll-page-container .skeleton-text {
+  height: 16px;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

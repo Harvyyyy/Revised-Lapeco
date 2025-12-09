@@ -634,7 +634,19 @@ const StatutoryDeductionRulesManager = () => {
                 </div>
             </div>
 
-            {filteredRules.length === 0 ? (
+            {loading && rules.length === 0 ? (
+               [1, 2, 3, 4].map(n => (
+                <div key={n} className="sdrm-card-item skeleton-card">
+                   <div className="d-flex justify-content-between align-items-start mb-3">
+                     <div className="skeleton-box rounded-circle" style={{width: '40px', height: '40px'}}></div>
+                   </div>
+                   <div className="sdrm-card-content w-100">
+                     <div className="skeleton-text mb-2" style={{width: '70%'}}></div>
+                     <div className="skeleton-text" style={{width: '40%'}}></div>
+                   </div>
+                </div>
+              ))
+            ) : filteredRules.length === 0 ? (
               <div className="text-center p-4 text-muted bg-light rounded border border-dashed flex-grow-1">
                 <small>No rules found matching "{searchTerm}"</small>
               </div>
@@ -811,6 +823,7 @@ const StatutoryDeductionRulesManager = () => {
                     )}
                   </div>
 
+                  {formData.rule_type !== 'salary_bracket' && (
                   <div className="row g-3 mt-2">
                     <div className="col-md-6">
                       <div className="sdrm-form-group">
@@ -843,6 +856,7 @@ const StatutoryDeductionRulesManager = () => {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {formData.rule_type === 'custom_formula' && (
                     <div className="mt-3">
@@ -1044,12 +1058,18 @@ const StatutoryDeductionRulesManager = () => {
                 <div className="sdrm-actions">
                   <div className="d-flex gap-2">
                     <button type="submit" className="sdrm-btn sdrm-btn-success" disabled={loading}>
-                      <i className="bi bi-check-lg me-2"></i>Save Rule
+                      {loading ? (
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <i className="bi bi-check-lg me-2"></i>
+                      )}
+                      Save Rule
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowForm(false)}
                       className="sdrm-btn sdrm-btn-secondary"
+                      disabled={loading}
                     >
                       Cancel
                     </button>
@@ -1061,7 +1081,12 @@ const StatutoryDeductionRulesManager = () => {
                       className="sdrm-btn sdrm-btn-danger"
                       disabled={loading}
                     >
-                      <i className="bi bi-trash me-2"></i>Delete Rule
+                      {loading ? (
+                         <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <i className="bi bi-trash me-2"></i>
+                      )}
+                      Delete Rule
                     </button>
                   )}
                 </div>
@@ -1085,6 +1110,11 @@ const StatutoryDeductionRulesManager = () => {
                       </div>
                     </div>
                     <button onClick={handleTestRule} className="sdrm-btn sdrm-btn-info" disabled={loading}>
+                      {loading ? (
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <i className="bi bi-play-fill me-2"></i>
+                      )}
                       Run Test
                     </button>
                   </div>
@@ -1103,12 +1133,20 @@ const StatutoryDeductionRulesManager = () => {
                     <h4 className="sdrm-section-title mb-4"><i className="bi bi-clock-history me-2"></i>Change History</h4>
                     
                     {loadingHistory ? (
-                      <div className="text-center py-5">
-                        <div className="spinner-border text-primary" role="status">
-                          <span className="visually-hidden">Loading...</span>
+                      [1, 2, 3].map(n => (
+                        <div key={n} className="card mb-3 border-start border-light border-4 shadow-sm history-log-card skeleton-card">
+                           <div className="card-body">
+                             <div className="d-flex justify-content-between align-items-start mb-2">
+                                <div className="skeleton-text" style={{width: '150px'}}></div>
+                                <div className="skeleton-text" style={{width: '100px'}}></div>
+                             </div>
+                             <div className="history-changes bg-light p-3 rounded mt-2 border">
+                                <div className="skeleton-text mb-1" style={{width: '80%'}}></div>
+                                <div className="skeleton-text" style={{width: '60%'}}></div>
+                             </div>
+                           </div>
                         </div>
-                        <p className="mt-2 text-muted">Loading history...</p>
-                      </div>
+                      ))
                     ) : historyLogs.length === 0 ? (
                       <div className="text-center py-5 text-muted border rounded bg-light">
                         <i className="bi bi-info-circle fs-1 mb-2"></i>

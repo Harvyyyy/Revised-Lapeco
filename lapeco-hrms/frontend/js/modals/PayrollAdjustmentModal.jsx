@@ -228,15 +228,20 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
     // Helper to calculate semi-monthly share based on monthly salary or actual gross
     const calculateShare = (rule) => {
         if (rule) {
-            if (monthlySalary > 0) {
-                // If monthly salary exists, calculate based on that (Monthly) and divide by 2
-                const result = calculateDeductionFromRule(monthlySalary, rule, false);
-                return parseFloat((result.employeeShare / 2).toFixed(2));
-            } else {
-                // Otherwise based on semi-monthly gross (Provisional)
+            // Always prioritize Total Gross Earnings for all statutory deductions (SSS, PhilHealth, Pag-IBIG)
+            // This ensures deductions reflect the actual earnings in the adjustment modal (including OT, etc.)
+            if (totalGrossPay > 0) {
                 const result = calculateDeductionFromRule(totalGrossPay, rule, true);
                 return result.employeeShare;
             }
+
+            if (monthlySalary > 0) {
+                // Fallback: If total gross is 0 (e.g., just started editing), use monthly salary
+                const result = calculateDeductionFromRule(monthlySalary, rule, false);
+                return parseFloat((result.employeeShare / 2).toFixed(2));
+            } 
+            
+            return 0;
         } else {
             return 0;
         }
