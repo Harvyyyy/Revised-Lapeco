@@ -620,18 +620,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
         <h6 className="form-grid-title"><i className="bi bi-shield-check me-2"></i>Statutory Deductions</h6>
         <p className="text-muted small">Tax is calculated automatically. Other contributions can be overridden if necessary.</p>
         
-        {activeRules.length > 0 && (
-          <div className="alert alert-info small mb-3">
-            <strong>Active Rules:</strong>
-            <ul className="mb-0 mt-2">
-              {activeRules.map(rule => (
-                <li key={rule.id}>
-                  <strong>{rule.deduction_type}:</strong> {rule.description}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+
         
         <div className="form-grid">
           <StatutoryField 
