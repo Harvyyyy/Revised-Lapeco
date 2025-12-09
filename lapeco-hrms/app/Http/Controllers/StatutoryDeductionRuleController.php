@@ -61,9 +61,11 @@ class StatutoryDeductionRuleController extends Controller
             'brackets' => 'nullable|array',
             'brackets.*.salary_from' => 'required_with:brackets|numeric|min:0',
             'brackets.*.salary_to' => 'nullable|numeric|min:0',
+            'brackets.*.regular_ss' => 'nullable|numeric|min:0',
             'brackets.*.employee_rate' => 'nullable|numeric|min:0|max:100',
             'brackets.*.employer_rate' => 'nullable|numeric|min:0|max:100',
             'brackets.*.fixed_amount' => 'nullable|numeric|min:0',
+            'brackets.*.fixed_employer_amount' => 'nullable|numeric|min:0',
             'brackets.*.sort_order' => 'nullable|integer',
         ]);
 
@@ -79,12 +81,8 @@ class StatutoryDeductionRuleController extends Controller
                 ->update(['is_default' => false]);
         }
 
+        // Save rule and brackets via service
         $rule = $this->service->saveRule($validated);
-
-        // Save brackets if provided
-        if (isset($validated['brackets'])) {
-            $this->saveBrackets($rule, $validated['brackets']);
-        }
 
         return response()->json([
             'message' => 'Deduction rule created successfully',
@@ -113,9 +111,11 @@ class StatutoryDeductionRuleController extends Controller
             'brackets' => 'nullable|array',
             'brackets.*.salary_from' => 'required_with:brackets|numeric|min:0',
             'brackets.*.salary_to' => 'nullable|numeric|min:0',
+            'brackets.*.regular_ss' => 'nullable|numeric|min:0',
             'brackets.*.employee_rate' => 'nullable|numeric|min:0|max:100',
             'brackets.*.employer_rate' => 'nullable|numeric|min:0|max:100',
             'brackets.*.fixed_amount' => 'nullable|numeric|min:0',
+            'brackets.*.fixed_employer_amount' => 'nullable|numeric|min:0',
             'brackets.*.sort_order' => 'nullable|integer',
         ]);
 
@@ -132,17 +132,38 @@ class StatutoryDeductionRuleController extends Controller
                 ->update(['is_default' => false]);
         }
 
+        // Save rule and brackets via service
         $rule = $this->service->saveRule($validated, $id);
-
-        // Update brackets if provided
-        if (isset($validated['brackets'])) {
-            $rule->brackets()->delete();
-            $this->saveBrackets($rule, $validated['brackets']);
-        }
 
         return response()->json([
             'message' => 'Deduction rule updated successfully',
             'data' => $this->formatRuleResponse($rule->load('brackets')),
+        ]);
+    }
+
+    /**
+     * Get history of changes for a specific rule.
+     */
+    public function getHistory($id)
+    {
+        $rule = StatutoryDeductionRule::findOrFail($id);
+        
+        $logs = $rule->auditLogs()
+            ->with('user')
+            ->latest()
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'action' => $log->action,
+                    'changes' => $log->changes,
+                    'user' => $log->user ? ($log->user->first_name . ' ' . $log->user->last_name) : 'System',
+                    'created_at' => $log->created_at,
+                ];
+            });
+
+        return response()->json([
+            'data' => $logs
         ]);
     }
 
@@ -252,32 +273,16 @@ class StatutoryDeductionRuleController extends Controller
                 'id' => $b->id,
                 'salary_from' => $b->salary_from,
                 'salary_to' => $b->salary_to,
+                'regular_ss' => $b->regular_ss,
                 'employee_rate' => $b->employee_rate,
                 'employer_rate' => $b->employer_rate,
                 'fixed_amount' => $b->fixed_amount,
+                'fixed_employer_amount' => $b->fixed_employer_amount,
                 'sort_order' => $b->sort_order,
             ]),
             'created_at' => $rule->created_at,
             'updated_at' => $rule->updated_at,
         ];
-    }
-
-    /**
-     * Save brackets for a rule.
-     */
-    private function saveBrackets(StatutoryDeductionRule $rule, array $brackets): void
-    {
-        foreach ($brackets as $index => $bracket) {
-            StatutoryDeductionBracket::create([
-                'rule_id' => $rule->id,
-                'salary_from' => $bracket['salary_from'],
-                'salary_to' => $bracket['salary_to'] ?? null,
-                'employee_rate' => $bracket['employee_rate'] ?? null,
-                'employer_rate' => $bracket['employer_rate'] ?? null,
-                'fixed_amount' => $bracket['fixed_amount'] ?? null,
-                'sort_order' => $bracket['sort_order'] ?? $index,
-            ]);
-        }
     }
 
     /**
@@ -344,11 +349,25 @@ class StatutoryDeductionRuleController extends Controller
             return [
                 'id' => $rule->id,
                 'deduction_type' => $rule->deduction_type,
+                'rule_name' => $rule->rule_name,
                 'rule_type' => $rule->rule_type,
                 'description' => $description,
                 'is_active' => $rule->is_active,
                 'minimum_salary' => $rule->minimum_salary,
                 'maximum_salary' => $rule->maximum_salary,
+                'fixed_percentage' => $rule->fixed_percentage,
+                'formula' => $rule->formula ? json_decode($rule->formula, true) : null,
+                'brackets' => $rule->brackets->map(fn ($b) => [
+                    'id' => $b->id,
+                    'salary_from' => $b->salary_from,
+                    'salary_to' => $b->salary_to,
+                    'regular_ss' => $b->regular_ss,
+                    'employee_rate' => $b->employee_rate,
+                    'employer_rate' => $b->employer_rate,
+                    'fixed_amount' => $b->fixed_amount,
+                    'fixed_employer_amount' => $b->fixed_employer_amount,
+                    'sort_order' => $b->sort_order,
+                ]),
                 'brackets_count' => $rule->brackets->count(),
             ];
         });

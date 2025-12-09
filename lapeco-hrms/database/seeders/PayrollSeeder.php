@@ -10,6 +10,7 @@ use App\Models\PayrollDeduction;
 use App\Models\PayrollStatutoryRequirement;
 use App\Models\User;
 use App\Models\Resignation;
+use App\Services\StatutoryDeductionService;
 use Carbon\Carbon;
 
 class PayrollSeeder extends Seeder
@@ -20,6 +21,7 @@ class PayrollSeeder extends Seeder
     public function run(): void
     {
         $now = Carbon::now();
+        $service = new StatutoryDeductionService();
 
         // Generate payroll periods for the last three years (two periods per month)
         $periods = collect();
@@ -100,55 +102,64 @@ class PayrollSeeder extends Seeder
                 ]);
 
                 $monthlyEquivalent = $monthlySalary > 0 ? $monthlySalary : ($baseRate * 22 * 8);
-                $sssSemi = 0.0;
-                if ($monthlyEquivalent >= 5000) {
-                    $msc = min($monthlyEquivalent, 30000);
-                    if ($msc < 30000) {
-                        $remainder = $msc % 500;
-                        $msc = $remainder < 250 ? $msc - $remainder : $msc - $remainder + 500;
-                    }
-                    $sssSemi = ($msc * 0.045) / 2;
+                
+                // Calculate Statutory Deductions using Service
+                // SSS (Monthly -> Split)
+                try {
+                    $sssResult = $service->calculateDeduction('SSS', $monthlyEquivalent);
+                    $sssSemi = $sssResult['employeeShare'] / 2;
+                    $sssEmployer = $sssResult['employerShare'] / 2;
+                } catch (\Exception $e) {
+                    $sssSemi = 0.0;
+                    $sssEmployer = 0.0;
                 }
 
-                $philSemi = 0.0;
-                if ($monthlyEquivalent >= 10000) {
-                    $base = min($monthlyEquivalent, 100000);
-                    $totalPremium = $base * 0.05;
-                    $philSemi = ($totalPremium / 2) / 2;
+                // PhilHealth (Monthly -> Split)
+                try {
+                    $philResult = $service->calculateDeduction('PhilHealth', $monthlyEquivalent);
+                    $philSemi = $philResult['employeeShare'] / 2;
+                    $philEmployer = $philResult['employerShare'] / 2;
+                } catch (\Exception $e) {
+                    $philSemi = 0.0;
+                    $philEmployer = 0.0;
                 }
 
-                $pagibigSemi = $monthlyEquivalent >= 1500 ? 100.0 / 2 : 0.0;
+                // Pag-IBIG (Monthly -> Split)
+                try {
+                    $pagResult = $service->calculateDeduction('Pag-IBIG', $monthlyEquivalent);
+                    $pagibigSemi = $pagResult['employeeShare'] / 2;
+                    $pagEmployer = $pagResult['employerShare'] / 2;
+                } catch (\Exception $e) {
+                    $pagibigSemi = 0.0;
+                    $pagEmployer = 0.0;
+                }
 
+                // Tax (Semi-Monthly Taxable Income)
                 $taxableSemi = max(0, $estimatedGross - ($sssSemi + $philSemi + $pagibigSemi));
-                $taxSemi = 0.0;
-                if ($taxableSemi <= 10417) {
+                try {
+                    $taxResult = $service->calculateDeduction('Tax', $taxableSemi);
+                    $taxSemi = $taxResult['employeeShare'];
+                    $taxEmployer = $taxResult['employerShare'];
+                } catch (\Exception $e) {
                     $taxSemi = 0.0;
-                } elseif ($taxableSemi <= 16666) {
-                    $taxSemi = ($taxableSemi - 10417) * 0.15;
-                } elseif ($taxableSemi <= 33332) {
-                    $taxSemi = 937.50 + ($taxableSemi - 16667) * 0.20;
-                } elseif ($taxableSemi <= 83332) {
-                    $taxSemi = 4270.70 + ($taxableSemi - 33333) * 0.25;
-                } elseif ($taxableSemi <= 333332) {
-                    $taxSemi = 16770.70 + ($taxableSemi - 83333) * 0.30;
-                } else {
-                    $taxSemi = 91770.70 + ($taxableSemi - 333333) * 0.35;
+                    $taxEmployer = 0.0;
                 }
 
                 $statutory = [
-                    'SSS' => round($sssSemi, 2),
-                    'PhilHealth' => round($philSemi, 2),
-                    'Pag-IBIG' => round($pagibigSemi, 2),
-                    'Tax' => round(max(0, $taxSemi), 2),
+                    'SSS' => ['ee' => round($sssSemi, 2), 'er' => round($sssEmployer, 2)],
+                    'PhilHealth' => ['ee' => round($philSemi, 2), 'er' => round($philEmployer, 2)],
+                    'Pag-IBIG' => ['ee' => round($pagibigSemi, 2), 'er' => round($pagEmployer, 2)],
+                    'Tax' => ['ee' => round(max(0, $taxSemi), 2), 'er' => round($taxEmployer, 2)],
                 ];
                 $totalStatutory = 0;
-                foreach ($statutory as $type => $amount) {
+                foreach ($statutory as $type => $amounts) {
                     PayrollStatutoryRequirement::create([
                         'employees_payroll_id' => $payroll->id,
                         'requirement_type' => $type,
-                        'requirement_amount' => $amount,
+                        'requirement_amount' => $amounts['ee'],
+                        'employer_amount' => $amounts['er'],
                     ]);
-                    $totalStatutory += $amount;
+                    $totalStatutory += $amounts['ee'];
                 }
 
                 // Other deductions

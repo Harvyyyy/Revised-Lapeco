@@ -4,7 +4,7 @@ import { formatDate as formatMDY } from '../utils/dateUtils';
 import './PayrollAdjustmentModal.css';
 import ReportPreviewModal from './ReportPreviewModal';
 import useReportGenerator from '../hooks/useReportGenerator';
-import { calculateSssContribution, calculatePhilhealthContribution, calculatePagibigContribution, calculateTin } from '../hooks/contributionUtils';
+import { calculateDeductionFromRule } from '../hooks/contributionUtils';
 import { payrollAPI } from '../services/api';
 
 const formatCurrency = (value) => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -38,9 +38,12 @@ const InfoField = ({ label, children }) => (
     </div>
 );
 
-const StatutoryField = ({ label, fieldKey, value, originalValue, onChange, onFocus, onBlur, activeField, readOnly = false, helperText }) => (
+const StatutoryField = ({ label, fieldKey, value, originalValue, onChange, onFocus, onBlur, activeField, readOnly = false, helperText, ruleName }) => (
     <div className="form-group">
-        <label htmlFor={fieldKey}>{label}</label>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+            <label htmlFor={fieldKey}>{label}</label>
+            {ruleName && <span className="badge bg-light text-secondary border" style={{fontSize: '0.75em', fontWeight: 'normal'}}>{ruleName}</span>}
+        </div>
         <div className="input-group">
             <span className="input-group-text">₱</span>
             <input 
@@ -86,30 +89,28 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
   }, [payrollData]);
 
   const systemCalculatedDeductions = useMemo(() => {
-    const semi = semiGrossFromPayroll || 0;
-    const sss = calculateSssContribution(semi, true);
-    const philhealth = calculatePhilhealthContribution(semi, true);
-    const pagibig = calculatePagibigContribution(semi, true);
+    // Use historical deductions from payroll data (database source of truth)
+    if (payrollData?.deductions) {
+        return {
+            sss: parseFloat(payrollData.deductions.sss || 0),
+            philhealth: parseFloat(payrollData.deductions.philhealth || 0),
+            hdmf: parseFloat(payrollData.deductions.pagibig || 0)
+        };
+    }
     return {
-      sss: parseFloat((sss.employeeShare || 0).toFixed(2)),
-      philhealth: parseFloat((philhealth.employeeShare || 0).toFixed(2)),
-      hdmf: parseFloat((pagibig.employeeShare || 0).toFixed(2)),
+      sss: 0,
+      philhealth: 0,
+      hdmf: 0,
     };
-  }, [semiGrossFromPayroll]);
+  }, [payrollData]);
 
   const eligibilityHelperTexts = useMemo(() => {
-    const monthlyEquivalent = (earnings && earnings.length
-      ? earnings.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) * 2
-      : (semiGrossFromPayroll || 0) * 2);
-    const sssEligible = monthlyEquivalent >= 5000;
-    const philEligible = monthlyEquivalent >= 10000;
-    const pagEligible = monthlyEquivalent >= 1500;
     return {
-      sss: sssEligible ? `Original: ₱${formatCurrency(systemCalculatedDeductions.sss)}` : 'Not eligible (below threshold)',
-      philhealth: philEligible ? `Original: ₱${formatCurrency(systemCalculatedDeductions.philhealth)}` : 'Not eligible (below threshold)',
-      hdmf: pagEligible ? `Original: ₱${formatCurrency(systemCalculatedDeductions.hdmf)}` : 'Not eligible (below threshold)'
+      sss: `Original: ₱${formatCurrency(systemCalculatedDeductions.sss)}`,
+      philhealth: `Original: ₱${formatCurrency(systemCalculatedDeductions.philhealth)}`,
+      hdmf: `Original: ₱${formatCurrency(systemCalculatedDeductions.hdmf)}`
     };
-  }, [earnings, semiGrossFromPayroll, systemCalculatedDeductions]);
+  }, [systemCalculatedDeductions]);
 
   // Fetch active deduction rules
   useEffect(() => {
@@ -178,8 +179,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
         const initialHdmf = parseFloat((payrollData.deductions?.pagibig || systemCalculatedDeductions.hdmf).toFixed(2));
         
         const initialTaxableIncome = initialGrossPay - (initialSss + initialPhilhealth + initialHdmf);
-        const { taxWithheld } = calculateTin(initialTaxableIncome);
-        const initialTax = parseFloat(taxWithheld.toFixed(2));
+        const initialTax = parseFloat((payrollData.deductions?.tax || 0).toFixed(2));
 
         setStatutoryDeductions({
             tax: initialTax,
@@ -192,35 +192,67 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
   
   useEffect(() => {
     if (!show || !earnings.length) return; 
-
     const totalGrossPay = earnings.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const otherContributions = (Number(statutoryDeductions.sss) || 0) + (Number(statutoryDeductions.philhealth) || 0) + (Number(statutoryDeductions.hdmf) || 0);
     const taxableIncome = totalGrossPay - otherContributions;
     
-    const { taxWithheld } = calculateTin(taxableIncome);
-    const newTax = parseFloat(taxWithheld.toFixed(2));
+    const taxRule = activeRules.find(r => r.deduction_type === 'Tax');
+    let newTax = 0;
+
+    if (taxRule) {
+        const result = calculateDeductionFromRule(taxableIncome, taxRule, true);
+        newTax = result.employeeShare;
+    } else {
+        newTax = 0;
+    }
     
     if (Math.abs((statutoryDeductions.tax || 0) - newTax) > 0.001) {
       setStatutoryDeductions(prev => ({ ...prev, tax: newTax }));
     }
-  }, [earnings, statutoryDeductions.sss, statutoryDeductions.philhealth, statutoryDeductions.hdmf]);
+  }, [earnings, statutoryDeductions.sss, statutoryDeductions.philhealth, statutoryDeductions.hdmf, activeRules]);
 
   useEffect(() => {
     if (!show || !earnings.length) return;
     const totalGrossPay = earnings.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const sssCalc = calculateSssContribution(totalGrossPay, true);
-    const philCalc = calculatePhilhealthContribution(totalGrossPay, true);
-    const pagCalc = calculatePagibigContribution(totalGrossPay, true);
-    const nextSss = parseFloat(((sssCalc.employeeShare || 0)).toFixed(2));
-    const nextPhil = parseFloat(((philCalc.employeeShare || 0)).toFixed(2));
-    const nextPag = parseFloat(((pagCalc.employeeShare || 0)).toFixed(2));
+
+    const sssRule = activeRules.find(r => r.deduction_type === 'SSS');
+    const philHealthRule = activeRules.find(r => r.deduction_type === 'PhilHealth');
+    const pagIbigRule = activeRules.find(r => r.deduction_type === 'Pag-IBIG');
+
+    const monthlySalary = Number(employeeDetails?.monthlySalary || 0);
+
+    let nextSss = 0;
+    let nextPhil = 0;
+    let nextPag = 0;
+
+    // Helper to calculate semi-monthly share based on monthly salary or actual gross
+    const calculateShare = (rule) => {
+        if (rule) {
+            if (monthlySalary > 0) {
+                // If monthly salary exists, calculate based on that (Monthly) and divide by 2
+                const result = calculateDeductionFromRule(monthlySalary, rule, false);
+                return parseFloat((result.employeeShare / 2).toFixed(2));
+            } else {
+                // Otherwise based on semi-monthly gross (Provisional)
+                const result = calculateDeductionFromRule(totalGrossPay, rule, true);
+                return result.employeeShare;
+            }
+        } else {
+            return 0;
+        }
+    };
+
+    nextSss = calculateShare(sssRule);
+    nextPhil = calculateShare(philHealthRule);
+    nextPag = calculateShare(pagIbigRule);
+
     setStatutoryDeductions(prev => ({
       ...prev,
-      sss: activeField === 'sss' ? prev.sss : nextSss,
-      philhealth: activeField === 'philhealth' ? prev.philhealth : nextPhil,
-      hdmf: activeField === 'hdmf' ? prev.hdmf : nextPag,
+      sss: activeField === 'sss' ? prev.sss : parseFloat(nextSss.toFixed(2)),
+      philhealth: activeField === 'philhealth' ? prev.philhealth : parseFloat(nextPhil.toFixed(2)),
+      hdmf: activeField === 'hdmf' ? prev.hdmf : parseFloat(nextPag.toFixed(2)),
     }));
-  }, [earnings, activeField, show]);
+  }, [earnings, activeField, show, activeRules, employeeDetails]);
 
   const totals = useMemo(() => {
     const totalGrossPay = earnings.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -529,10 +561,49 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
         )}
         
         <div className="form-grid">
-          <StatutoryField label="Withholding Tax" fieldKey="tax" value={statutoryDeductions.tax} readOnly={true} />
-          <StatutoryField label="SSS Contribution" fieldKey="sss" value={statutoryDeductions.sss} originalValue={systemCalculatedDeductions.sss} onChange={handleStatutoryChange} onFocus={(e) => setActiveField(e.target.name)} onBlur={() => setActiveField(null)} activeField={activeField} helperText={eligibilityHelperTexts.sss} />
-          <StatutoryField label="PhilHealth Contribution" fieldKey="philhealth" value={statutoryDeductions.philhealth} originalValue={systemCalculatedDeductions.philhealth} onChange={handleStatutoryChange} onFocus={(e) => setActiveField(e.target.name)} onBlur={() => setActiveField(null)} activeField={activeField} helperText={eligibilityHelperTexts.philhealth} />
-          <StatutoryField label="Pag-IBIG Contribution" fieldKey="hdmf" value={statutoryDeductions.hdmf} originalValue={systemCalculatedDeductions.hdmf} onChange={handleStatutoryChange} onFocus={(e) => setActiveField(e.target.name)} onBlur={() => setActiveField(null)} activeField={activeField} helperText={eligibilityHelperTexts.hdmf} />
+          <StatutoryField 
+            label="Withholding Tax" 
+            fieldKey="tax" 
+            value={statutoryDeductions.tax} 
+            readOnly={true} 
+            ruleName={activeRules.find(r => r.deduction_type === 'Tax')?.rule_name}
+          />
+          <StatutoryField 
+            label="SSS Contribution" 
+            fieldKey="sss" 
+            value={statutoryDeductions.sss} 
+            originalValue={systemCalculatedDeductions.sss} 
+            onChange={handleStatutoryChange} 
+            onFocus={(e) => setActiveField(e.target.name)} 
+            onBlur={() => setActiveField(null)} 
+            activeField={activeField} 
+            helperText={eligibilityHelperTexts.sss}
+            ruleName={activeRules.find(r => r.deduction_type === 'SSS')?.rule_name}
+          />
+          <StatutoryField 
+            label="PhilHealth Contribution" 
+            fieldKey="philhealth" 
+            value={statutoryDeductions.philhealth} 
+            originalValue={systemCalculatedDeductions.philhealth} 
+            onChange={handleStatutoryChange} 
+            onFocus={(e) => setActiveField(e.target.name)} 
+            onBlur={() => setActiveField(null)} 
+            activeField={activeField} 
+            helperText={eligibilityHelperTexts.philhealth}
+            ruleName={activeRules.find(r => r.deduction_type === 'PhilHealth')?.rule_name}
+          />
+          <StatutoryField 
+            label="Pag-IBIG Contribution" 
+            fieldKey="hdmf" 
+            value={statutoryDeductions.hdmf} 
+            originalValue={systemCalculatedDeductions.hdmf} 
+            onChange={handleStatutoryChange} 
+            onFocus={(e) => setActiveField(e.target.name)} 
+            onBlur={() => setActiveField(null)} 
+            activeField={activeField} 
+            helperText={eligibilityHelperTexts.hdmf}
+            ruleName={activeRules.find(r => r.deduction_type === 'Pag-IBIG')?.rule_name}
+          />
         </div>
       </div>
       <div className="deductions-column">

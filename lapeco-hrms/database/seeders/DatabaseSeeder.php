@@ -178,7 +178,8 @@ class DatabaseSeeder extends Seeder
                 'middle_name' => null,
                 'last_name' => 'Leader',
                 'email' => 'packer.leader@example.com',
-                'role' => 'TEAM_LEADER',
+                'role' => 'REGULAR_EMPLOYEE',
+                'is_team_leader' => true,
                 'position_id' => $positionIds['Packer'],
                 'account_status' => 'Active',
             ],
@@ -187,7 +188,8 @@ class DatabaseSeeder extends Seeder
                 'middle_name' => null,
                 'last_name' => 'Leader',
                 'email' => 'lifter.leader@example.com',
-                'role' => 'TEAM_LEADER',
+                'role' => 'REGULAR_EMPLOYEE',
+                'is_team_leader' => true,
                 'position_id' => $positionIds['Lifter'],
                 'account_status' => 'Active',
             ],
@@ -196,7 +198,8 @@ class DatabaseSeeder extends Seeder
                 'middle_name' => null,
                 'last_name' => 'Leader',
                 'email' => 'picker.leader@example.com',
-                'role' => 'TEAM_LEADER',
+                'role' => 'REGULAR_EMPLOYEE',
+                'is_team_leader' => true,
                 'position_id' => $positionIds['Picker'],
                 'account_status' => 'Active',
             ],
@@ -205,7 +208,8 @@ class DatabaseSeeder extends Seeder
                 'middle_name' => null,
                 'last_name' => 'Leader',
                 'email' => 'mover.leader@example.com',
-                'role' => 'TEAM_LEADER',
+                'role' => 'REGULAR_EMPLOYEE',
+                'is_team_leader' => true,
                 'position_id' => $positionIds['Mover'],
                 'account_status' => 'Active',
             ],
@@ -266,9 +270,10 @@ class DatabaseSeeder extends Seeder
         // Create additional users distributed among positions
         $allPositionIds = array_values($positionIds);
         \App\Models\User::factory(65)->create()->each(function ($user) use ($allPositionIds) {
-            $role = rand(1, 10) === 1 ? 'TEAM_LEADER' : 'REGULAR_EMPLOYEE'; // ~10% team leaders
+            $isTeamLeader = rand(1, 10) === 1; // ~10% team leaders
             $user->update([
-                'role' => $role,
+                'role' => 'REGULAR_EMPLOYEE',
+                'is_team_leader' => $isTeamLeader,
                 'position_id' => $allPositionIds[array_rand($allPositionIds)],
             ]);
         });

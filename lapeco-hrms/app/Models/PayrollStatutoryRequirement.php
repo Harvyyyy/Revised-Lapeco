@@ -17,12 +17,14 @@ class PayrollStatutoryRequirement extends Model
      */
     protected $encrypted = [
         'requirement_amount',
+        'employer_amount',
     ];
 
     protected $fillable = [
         'employees_payroll_id',
         'requirement_type',
         'requirement_amount',
+        'employer_amount',
     ];
 
     protected $casts = [

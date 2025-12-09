@@ -94,20 +94,28 @@ class StatutoryDeductionService
                 continue;
             }
 
+            // Determine calculation base (Salary or MSC/Regular SS)
+            $calculationBase = $salary;
+
+            // If regular_ss (MSC) is defined in the bracket, use it as the base
+            if ($bracket->regular_ss && (float) $bracket->regular_ss > 0) {
+                $calculationBase = (float) $bracket->regular_ss;
+            } elseif ($rule->maximum_salary && $calculationBase > (float) $rule->maximum_salary) {
+                // Fallback to max salary cap if no MSC is defined
+                $calculationBase = (float) $rule->maximum_salary;
+            }
+
             // If fixed amount is set, use that
             if ($bracket->fixed_amount) {
                 $employeeShare = (float) $bracket->fixed_amount;
             } else {
-                // Calculate based on rates
-                $applicableSalary = $salary;
-                if ($bracket->salary_to) {
-                    $applicableSalary = min($salary, (float) $bracket->salary_to);
-                }
-                $employeeShare = round($applicableSalary * ((float) $bracket->employee_rate / 100), 2);
+                $employeeShare = round($calculationBase * ((float) $bracket->employee_rate / 100), 2);
             }
 
-            if ($bracket->employer_rate) {
-                $employerShare = round($salary * ((float) $bracket->employer_rate / 100), 2);
+            if ($bracket->fixed_employer_amount) {
+                $employerShare = (float) $bracket->fixed_employer_amount;
+            } elseif ($bracket->employer_rate) {
+                $employerShare = round($calculationBase * ((float) $bracket->employer_rate / 100), 2);
             }
 
             break;
@@ -168,14 +176,30 @@ class StatutoryDeductionService
      */
     public function calculateAllDeductions(float $salary, array $context = []): array
     {
-        $deductionTypes = ['SSS', 'PhilHealth', 'Pag-IBIG', 'Tax'];
+        $activeRules = StatutoryDeductionRule::active()->get();
         $results = [];
 
-        foreach ($deductionTypes as $type) {
+        foreach ($activeRules as $rule) {
+            $type = $rule->deduction_type;
             try {
+                // Use the rule object directly to avoid fetching it again
+                // But calculateDeduction expects a type string and refetches.
+                // For efficiency, we should refactor calculateDeduction to accept a rule object,
+                // or just call the internal methods directly.
+                // However, to keep it simple and consistent with existing public API:
                 $results[$type] = $this->calculateDeduction($type, $salary, $context);
             } catch (Exception $e) {
                 // Log but don't fail - return zero deduction
+                $results[$type] = ['employeeShare' => 0.0, 'employerShare' => 0.0, 'total' => 0.0];
+            }
+        }
+
+        // Ensure standard keys exist even if no rule is active (for frontend compatibility if needed)
+        // But truly dynamic systems shouldn't enforce this.
+        // Given the frontend expects 'SSS', 'PhilHealth', etc., we might want to ensure they are zero if missing.
+        $standardTypes = ['SSS', 'PhilHealth', 'Pag-IBIG', 'Tax'];
+        foreach ($standardTypes as $type) {
+            if (!isset($results[$type])) {
                 $results[$type] = ['employeeShare' => 0.0, 'employerShare' => 0.0, 'total' => 0.0];
             }
         }
@@ -196,21 +220,95 @@ class StatutoryDeductionService
      */
     public function saveRule(array $data, ?int $ruleId = null): StatutoryDeductionRule
     {
-        $rule = $ruleId ? StatutoryDeductionRule::findOrFail($ruleId) : new StatutoryDeductionRule();
+        $rule = $ruleId 
+            ? StatutoryDeductionRule::with('brackets')->findOrFail($ruleId) 
+            : new StatutoryDeductionRule();
+
+        // Capture original state for logging
+        $originalAttributes = $ruleId ? $rule->getAttributes() : [];
+        
+        $originalBrackets = $ruleId ? $rule->brackets->map(function ($bracket) {
+            return $bracket->only([
+                'salary_from', 'salary_to', 'regular_ss', 'employee_rate', 'employer_rate', 
+                'fixed_amount', 'fixed_employer_amount', 'sort_order'
+            ]);
+        })->toArray() : [];
 
         $rule->fill($data);
         $rule->save();
 
-        // Log the change
-        $action = $ruleId ? 'updated' : 'created';
-        $changes = $ruleId ? array_diff_assoc($data, $rule->getOriginal()) : $data;
+        $bracketsChanged = false;
+        $newBrackets = [];
 
-        StatutoryDeductionAuditLog::create([
-            'rule_id' => $rule->id,
-            'action' => $action,
-            'changes' => $changes,
-            'user_id' => auth()->id(),
-        ]);
+        // Handle brackets if provided in data
+        if (isset($data['brackets'])) {
+            // Delete existing brackets
+            $rule->brackets()->delete();
+            
+            // Create new brackets
+            foreach ($data['brackets'] as $index => $bracketData) {
+                // Ensure sort_order is set
+                $bracketData['sort_order'] = $bracketData['sort_order'] ?? $index;
+                $rule->brackets()->create($bracketData);
+                
+                // Clean data for comparison/logging
+                $newBrackets[] = array_intersect_key($bracketData, array_flip([
+                    'salary_from', 'salary_to', 'regular_ss', 'employee_rate', 'employer_rate', 
+                    'fixed_amount', 'fixed_employer_amount', 'sort_order'
+                ]));
+            }
+            $bracketsChanged = true;
+        }
+
+        // Calculate changes
+        $changes = [];
+        
+        // Rule attribute changes
+        if ($ruleId) {
+            // Get changes from the last save
+            $dirty = $rule->getChanges();
+            $attributeChanges = [];
+            
+            foreach ($dirty as $key => $newValue) {
+                // Skip updated_at timestamp
+                if ($key === 'updated_at') continue;
+                
+                $attributeChanges[$key] = [
+                    'old' => $originalAttributes[$key] ?? null,
+                    'new' => $newValue
+                ];
+            }
+            
+            if (!empty($attributeChanges)) {
+                $changes['attributes'] = $attributeChanges;
+            }
+        } else {
+            $changes['attributes'] = $rule->getAttributes();
+        }
+
+        // Bracket changes
+        if ($bracketsChanged) {
+            // Compare serialized arrays to check for actual changes
+            // We only log brackets if they actually changed or if it's a new rule
+            if (!$ruleId || json_encode($originalBrackets) !== json_encode($newBrackets)) {
+                $changes['brackets'] = [
+                    'old' => $originalBrackets,
+                    'new' => $newBrackets
+                ];
+            }
+        }
+
+        // Log the change if anything changed
+        if (!empty($changes)) {
+            $action = $ruleId ? 'updated' : 'created';
+            
+            StatutoryDeductionAuditLog::create([
+                'rule_id' => $rule->id,
+                'action' => $action,
+                'changes' => $changes,
+                'user_id' => optional(auth()->guard()->user())->id,
+            ]);
+        }
 
         return $rule;
     }
@@ -220,15 +318,15 @@ class StatutoryDeductionService
      */
     public function deleteRule(int $ruleId): bool
     {
-        $rule = StatutoryDeductionRule::findOrFail($ruleId);
+        $rule = StatutoryDeductionRule::with('brackets')->findOrFail($ruleId);
 
         StatutoryDeductionAuditLog::create([
             'rule_id' => $rule->id,
             'action' => 'deleted',
-            'changes' => $rule->toArray(),
-            'user_id' => auth()->id(),
+            'changes' => $rule->toArray(), // This will now include brackets
+            'user_id' => optional(auth()->guard()->user())->id,
         ]);
 
-        return $rule->delete();
+        return (bool) $rule->delete();
     }
 }
