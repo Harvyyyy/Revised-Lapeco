@@ -1369,27 +1369,32 @@ class PayrollController extends Controller
                 // Calculate Statutory Deductions using Service (Dynamic Rules)
                 // Note: Rules return monthly amounts. For semi-monthly payroll, we divide by 2.
                 
-                $sssResult = $this->deductionService->calculateDeduction('SSS', $monthlySalary);
-                $sssEe = $sssResult['employeeShare'] / 2;
-                $sssEr = $sssResult['employerShare'] / 2;
+                // Use Actual Gross * 2 (Projected Monthly Gross) as basis for SSS/PhilHealth/Pag-IBIG
+                // This aligns with the frontend calculation logic in PayrollAdjustmentModal.
+                $projectedMonthlyGross = $gross * 2;
+                
+                $sssResult = $this->deductionService->calculateDeduction('SSS', $projectedMonthlyGross);
+                $sssEe = round($sssResult['employeeShare'] / 2, 2);
+                $sssEr = round($sssResult['employerShare'] / 2, 2);
                 $sssRuleName = $sssResult['rule_name'] ?? null;
                 $sssRuleId = $sssResult['rule_id'] ?? null;
 
-                $philResult = $this->deductionService->calculateDeduction('PhilHealth', $monthlySalary);
-                $philEe = $philResult['employeeShare'] / 2;
-                $philEr = $philResult['employerShare'] / 2;
+                $philResult = $this->deductionService->calculateDeduction('PhilHealth', $projectedMonthlyGross);
+                $philEe = round($philResult['employeeShare'] / 2, 2);
+                $philEr = round($philResult['employerShare'] / 2, 2);
                 $philRuleName = $philResult['rule_name'] ?? null;
                 $philRuleId = $philResult['rule_id'] ?? null;
 
-                $pagResult = $this->deductionService->calculateDeduction('Pag-IBIG', $monthlySalary);
-                $pagEe = $pagResult['employeeShare'] / 2;
-                $pagEr = $pagResult['employerShare'] / 2;
+                $pagResult = $this->deductionService->calculateDeduction('Pag-IBIG', $projectedMonthlyGross);
+                $pagEe = round($pagResult['employeeShare'] / 2, 2);
+                $pagEr = round($pagResult['employerShare'] / 2, 2);
                 $pagRuleName = $pagResult['rule_name'] ?? null;
                 $pagRuleId = $pagResult['rule_id'] ?? null;
 
                 // Tax Calculation
                 // Tax is based on taxable income (Gross - Deductions)
                 // NOTE: We use the ACTUAL Gross from this payroll period for Tax, not monthly salary
+                // We use rounded deductions for Taxable Income to match frontend calculation
                 $taxableIncome = max(0, $gross - ($sssEe + $philEe + $pagEe));
                 
                 // For Tax, the service expects taxable income. 
@@ -1422,21 +1427,27 @@ class PayrollController extends Controller
 
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'SSS'],
-                ['requirement_amount' => round($sssEe, 2), 'employer_amount' => round($sssEr, 2), 'rule_name' => $sssRuleName, 'rule_id' => $sssRuleId]
+                ['requirement_amount' => $sssEe, 'employer_amount' => $sssEr, 'rule_name' => $sssRuleName, 'rule_id' => $sssRuleId]
             );
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'PhilHealth'],
-                ['requirement_amount' => round($philEe, 2), 'employer_amount' => round($philEr, 2), 'rule_name' => $philRuleName, 'rule_id' => $philRuleId]
+                ['requirement_amount' => $philEe, 'employer_amount' => $philEr, 'rule_name' => $philRuleName, 'rule_id' => $philRuleId]
             );
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'Pag-IBIG'],
-                ['requirement_amount' => round($pagEe, 2), 'employer_amount' => round($pagEr, 2), 'rule_name' => $pagRuleName, 'rule_id' => $pagRuleId]
+                ['requirement_amount' => $pagEe, 'employer_amount' => $pagEr, 'rule_name' => $pagRuleName, 'rule_id' => $pagRuleId]
             );
+            
+            // Ensure tax is rounded (consistency)
+            $tax = round(max(0, $tax), 2);
+            
             PayrollStatutoryRequirement::updateOrCreate(
                 ['employees_payroll_id' => $employeePayroll->id, 'requirement_type' => 'Tax'],
-                ['requirement_amount' => round(max(0, $tax), 2), 'employer_amount' => 0, 'rule_name' => $taxRuleName, 'rule_id' => $taxRuleId]
+                ['requirement_amount' => $tax, 'employer_amount' => 0, 'rule_name' => $taxRuleName, 'rule_id' => $taxRuleId]
             );
-            $totalDeductions += round($sssEe + $philEe + $pagEe + max(0, $tax), 2);
+            
+            // Sum of rounded values to match frontend
+            $totalDeductions += ($sssEe + $philEe + $pagEe + $tax);
             $employeePayroll->total_deductions = round($totalDeductions, 2);
             $employeePayroll->save();
         }

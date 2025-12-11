@@ -38,11 +38,24 @@ const InfoField = ({ label, children }) => (
     </div>
 );
 
-const StatutoryField = ({ label, fieldKey, value, originalValue, onChange, onFocus, onBlur, activeField, readOnly = false, helperText, ruleName }) => (
+const StatutoryField = ({ label, fieldKey, value, originalValue, onChange, onFocus, onBlur, activeField, readOnly = false, helperText, ruleName, onShowBreakdown }) => (
     <div className="form-group">
         <div className="d-flex justify-content-between align-items-center mb-1">
             <label htmlFor={fieldKey}>{label}</label>
-            {ruleName && <span className="badge bg-light text-secondary border" style={{fontSize: '0.75em', fontWeight: 'normal'}}>{ruleName}</span>}
+            <div className="d-flex gap-2 align-items-center">
+                {onShowBreakdown && (
+                    <button 
+                        type="button" 
+                        className="btn btn-link p-0 text-info" 
+                        style={{ fontSize: '0.8rem', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                        onClick={onShowBreakdown}
+                        title="Show Calculation Breakdown"
+                    >
+                        <i className="bi bi-info-circle-fill me-1"></i>Breakdown
+                    </button>
+                )}
+                {ruleName && <span className="badge bg-light text-secondary border" style={{fontSize: '0.75em', fontWeight: 'normal'}}>{ruleName}</span>}
+            </div>
         </div>
         <div className="input-group">
             <span className="input-group-text">₱</span>
@@ -75,6 +88,11 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
   const [activeField, setActiveField] = useState(null);
   const [activeRules, setActiveRules] = useState([]);
   
+  // Breakdown Modal State
+  const [breakdownModalOpen, setBreakdownModalOpen] = useState(false);
+  const [currentBreakdown, setCurrentBreakdown] = useState({ title: '', items: [] });
+  const [deductionBreakdowns, setDeductionBreakdowns] = useState({});
+
   const [showPayslipPreview, setShowPayslipPreview] = useState(false);
   const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator(theme);
 
@@ -240,20 +258,33 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
     const otherContributions = (Number(statutoryDeductions.sss) || 0) + (Number(statutoryDeductions.philhealth) || 0) + (Number(statutoryDeductions.hdmf) || 0);
     const taxableIncome = totalGrossPay - otherContributions;
     
-    const taxRule = activeRules.find(r => r.deduction_type === 'Tax');
+    // Helper to find rule (prioritizing saved rule)
+    const getTaxRule = () => {
+        if (payrollData?.statutoryDetails?.tax?.rule) {
+             return payrollData.statutoryDetails.tax.rule;
+        }
+        return activeRules.find(r => r.deduction_type === 'Tax' && r.is_default) || activeRules.find(r => r.deduction_type === 'Tax');
+    };
+
+    const taxRule = getTaxRule();
     let newTax = 0;
 
     if (taxRule) {
-        const result = calculateDeductionFromRule(taxableIncome, taxRule, true);
+        // Use isProvisional=false to use the raw semi-monthly income against the brackets.
+        // The user has configured Semi-Monthly Tax Tables (e.g. 0-10,417 range).
+        // Therefore, we pass the semi-monthly income directly and do NOT divide the result.
+        const result = calculateDeductionFromRule(taxableIncome, taxRule, false);
         newTax = result.employeeShare;
+        setDeductionBreakdowns(prev => ({ ...prev, tax: result.breakdown }));
     } else {
         newTax = 0;
+        setDeductionBreakdowns(prev => ({ ...prev, tax: ['No active tax rule found'] }));
     }
     
     if (Math.abs((statutoryDeductions.tax || 0) - newTax) > 0.001) {
       setStatutoryDeductions(prev => ({ ...prev, tax: newTax }));
     }
-  }, [earnings, statutoryDeductions.sss, statutoryDeductions.philhealth, statutoryDeductions.hdmf, activeRules]);
+  }, [earnings, statutoryDeductions.sss, statutoryDeductions.philhealth, statutoryDeductions.hdmf, activeRules, payrollData]);
 
   useEffect(() => {
     if (!show || !earnings.length) return;
@@ -288,24 +319,39 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
             // This ensures deductions reflect the actual earnings in the adjustment modal (including OT, etc.)
             if (totalGrossPay > 0) {
                 const result = calculateDeductionFromRule(totalGrossPay, rule, true);
-                return result.employeeShare;
+                return result;
             }
 
             if (monthlySalary > 0) {
                 // Fallback: If total gross is 0 (e.g., just started editing), use monthly salary
                 const result = calculateDeductionFromRule(monthlySalary, rule, false);
-                return parseFloat((result.employeeShare / 2).toFixed(2));
+                return {
+                    ...result,
+                    employeeShare: parseFloat((result.employeeShare / 2).toFixed(2)),
+                    breakdown: [...result.breakdown, "Result divided by 2 for semi-monthly period"]
+                };
             } 
             
-            return 0;
+            return { employeeShare: 0, breakdown: [] };
         } else {
-            return 0;
+            return { employeeShare: 0, breakdown: [] };
         }
     };
 
-    nextSss = calculateShare(sssRule);
-    nextPhil = calculateShare(philHealthRule);
-    nextPag = calculateShare(pagIbigRule);
+    const sssResult = calculateShare(sssRule);
+    const philResult = calculateShare(philHealthRule);
+    const pagResult = calculateShare(pagIbigRule);
+
+    nextSss = sssResult.employeeShare;
+    nextPhil = philResult.employeeShare;
+    nextPag = pagResult.employeeShare;
+
+    setDeductionBreakdowns(prev => ({
+        ...prev,
+        sss: sssResult.breakdown,
+        philhealth: philResult.breakdown,
+        hdmf: pagResult.breakdown
+    }));
 
     setStatutoryDeductions(prev => ({
       ...prev,
@@ -422,6 +468,11 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
   const handleStatutoryChange = (e) => {
       const { name, value } = e.target;
       setStatutoryDeductions(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleShowBreakdown = (title, items) => {
+    setCurrentBreakdown({ title, items: items || [] });
+    setBreakdownModalOpen(true);
   };
 
   const handleSaveClick = () => {
@@ -629,6 +680,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
             value={statutoryDeductions.tax} 
             readOnly={true} 
             ruleName={getPersistedRuleName('Tax', 'tax')}
+            onShowBreakdown={() => handleShowBreakdown('Withholding Tax Calculation', deductionBreakdowns.tax)}
           />
           <StatutoryField 
             label="SSS Contribution" 
@@ -641,6 +693,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
             activeField={activeField} 
             helperText={eligibilityHelperTexts.sss}
             ruleName={getPersistedRuleName('SSS', 'sss')}
+            onShowBreakdown={() => handleShowBreakdown('SSS Contribution Calculation', deductionBreakdowns.sss)}
           />
           <StatutoryField 
             label="PhilHealth Contribution" 
@@ -653,6 +706,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
             activeField={activeField} 
             helperText={eligibilityHelperTexts.philhealth}
             ruleName={getPersistedRuleName('PhilHealth', 'philhealth')}
+            onShowBreakdown={() => handleShowBreakdown('PhilHealth Contribution Calculation', deductionBreakdowns.philhealth)}
           />
           <StatutoryField 
             label="Pag-IBIG Contribution" 
@@ -665,6 +719,7 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
             activeField={activeField} 
             helperText={eligibilityHelperTexts.hdmf}
             ruleName={getPersistedRuleName('Pag-IBIG', 'pag-ibig')}
+            onShowBreakdown={() => handleShowBreakdown('Pag-IBIG Contribution Calculation', deductionBreakdowns.hdmf)}
           />
         </div>
       </div>
@@ -827,6 +882,76 @@ const PayrollAdjustmentModal = ({ show, onClose, onSave, payrollData, employeeDe
           pdfDataUri={pdfDataUri} 
           reportTitle={`Payslip Preview - ${payrollData.employeeName}`} 
         />
+      )}
+
+      {/* Breakdown Modal */}
+      {breakdownModalOpen && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">{currentBreakdown.title}</h5>
+                <button type="button" className="btn-close" onClick={() => setBreakdownModalOpen(false)}></button>
+              </div>
+              <div className="modal-body">
+                {currentBreakdown.items && currentBreakdown.items.length > 0 ? (
+                    <ul className="list-group list-group-flush">
+                        {currentBreakdown.items.map((item, idx) => {
+                            if (typeof item === 'string') {
+                                return <li key={idx} className="list-group-item small py-1">{item}</li>;
+                            }
+                            
+                            const { type, label, value } = item;
+                            let itemClass = "list-group-item small py-1 d-flex justify-content-between align-items-center";
+                            let labelClass = "";
+                            let valueClass = "text-end ms-2";
+
+                            switch (type) {
+                                case 'header':
+                                    itemClass += " bg-light fw-bold mt-2";
+                                    break;
+                                case 'info':
+                                    itemClass += " text-secondary";
+                                    break;
+                                case 'formula':
+                                    itemClass += " bg-light text-primary fst-italic";
+                                    valueClass += " font-monospace";
+                                    break;
+                                case 'calculation':
+                                    itemClass += " ps-4 border-0";
+                                    break;
+                                case 'result':
+                                    itemClass += " fw-bold bg-success bg-opacity-10 border-top border-bottom my-1";
+                                    valueClass += " text-success";
+                                    break;
+                                case 'warning':
+                                    itemClass += " text-warning";
+                                    break;
+                                case 'error':
+                                    itemClass += " text-danger fw-bold";
+                                    break;
+                                default:
+                                    break;
+                            }
+
+                            return (
+                                <li key={idx} className={itemClass}>
+                                    <span className={labelClass}>{label}</span>
+                                    <span className={valueClass}>{value}</span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : (
+                    <p className="text-muted text-center my-3">No breakdown details available.</p>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setBreakdownModalOpen(false)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

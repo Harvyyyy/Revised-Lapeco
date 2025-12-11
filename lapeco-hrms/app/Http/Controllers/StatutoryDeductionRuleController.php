@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\StatutoryDeductionRule;
 use App\Models\StatutoryDeductionBracket;
+use App\Models\PayrollStatutoryRequirement;
 use App\Services\StatutoryDeductionService;
 use App\Support\SafeMathEvaluator;
 use Illuminate\Http\Request;
@@ -168,6 +169,55 @@ class StatutoryDeductionRuleController extends Controller
 
         return response()->json([
             'data' => $logs
+        ]);
+    }
+
+    /**
+     * Get payrolls that use this deduction rule.
+     */
+    public function getRelatedPayrolls($id)
+    {
+        // Check if rule exists
+        $rule = StatutoryDeductionRule::findOrFail($id);
+
+        // Find inactive rules of the same type (to include historical data from previous versions)
+        $inactiveRuleIds = StatutoryDeductionRule::where('deduction_type', $rule->deduction_type)
+            ->where('is_active', false)
+            ->pluck('id');
+
+        $payrolls = PayrollStatutoryRequirement::query()
+            ->where('requirement_type', $rule->deduction_type)
+            ->where(function($query) use ($id, $inactiveRuleIds) {
+                $query->where('rule_id', $id)
+                      ->orWhereIn('rule_id', $inactiveRuleIds)
+                      ->orWhereNull('rule_id'); // Include legacy records without rule_id
+            })
+            ->with(['employeePayroll.period'])
+            ->latest()
+            ->get()
+            ->groupBy(function ($item) {
+                // Group by payroll period ID
+                return $item->employeePayroll->period_id ?? 'unknown';
+            })
+            ->map(function ($items) {
+                // Since we grouped by period, all items in $items belong to the same period
+                $firstItem = $items->first();
+                $period = $firstItem->employeePayroll->period ?? null;
+                
+                return [
+                    'id' => $firstItem->id, // Use ID of first item as representative
+                    'period_id' => $period->id ?? null,
+                    'payroll_period' => $period ? ($period->period_start->format('M d, Y') . ' - ' . $period->period_end->format('M d, Y')) : 'Unknown Period',
+                    'total_amount' => $items->sum('requirement_amount'), // Sum of all employee deductions
+                    'total_employer_amount' => $items->sum('employer_amount'), // Sum of all employer shares
+                    'employee_count' => $items->count(),
+                    'created_at' => $firstItem->created_at,
+                ];
+            })
+            ->values(); // Reset keys to array
+
+        return response()->json([
+            'data' => $payrolls
         ]);
     }
 

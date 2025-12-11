@@ -30,7 +30,7 @@
   padding-bottom: 1rem;
   margin-bottom: 1rem;
   scrollbar-width: thin;
-  scrollbar-color: var(--app-primary-color) var(--bg-secondary);
+  scrollbar-color: var(--app-success-color) var(--bg-secondary);
   scroll-behavior: smooth;
 }
 
@@ -44,7 +44,7 @@
 }
 
 .payroll-page-container .sdrm-cards-scroll-container::-webkit-scrollbar-thumb {
-  background-color: var(--app-primary-color);
+  background-color: var(--app-success-color);
   border-radius: 4px;
   border: 2px solid var(--bg-secondary);
 }
@@ -81,29 +81,29 @@
 .payroll-page-container .sdrm-card-item.dashed-border {
   border-style: dashed;
   border-width: 2px;
-  background: rgba(var(--app-primary-rgb), 0.03);
-  border-color: rgba(var(--app-primary-rgb), 0.3);
+  background: rgba(25, 135, 84, 0.03);
+  border-color: rgba(25, 135, 84, 0.3);
 }
 
 .payroll-page-container .sdrm-card-item.dashed-border:hover {
-  background: rgba(var(--app-primary-rgb), 0.06);
-  border-color: var(--app-primary-color);
+  background: rgba(25, 135, 84, 0.06);
+  border-color: var(--app-success-color);
 }
 
 .payroll-page-container .sdrm-card-item:hover {
   transform: translateY(-5px);
   box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-  border-color: var(--app-primary-color, #0d6efd);
+  border-color: var(--app-success-color, #198754);
 }
 
 .payroll-page-container .sdrm-card-item.active {
-  border-color: var(--app-primary-color, #0d6efd);
-  background: linear-gradient(145deg, #ffffff, #f0f7ff); /* Fallback background */
-  box-shadow: 0 8px 20px rgba(13, 110, 253, 0.15);
+  border-color: var(--app-success-color, #198754);
+  background: linear-gradient(145deg, #ffffff, #f0fff4); /* Fallback background */
+  box-shadow: 0 8px 20px rgba(25, 135, 84, 0.15);
 }
 
 .payroll-page-container .sdrm-card-item.active::before {
-  background-color: var(--app-primary-color, #0d6efd);
+  background-color: var(--app-success-color, #198754);
 }
 
 .payroll-page-container .sdrm-card-content {
@@ -126,13 +126,13 @@
 }
 
 .payroll-page-container .sdrm-card-item:hover .sdrm-item-icon {
-  color: var(--app-primary-color, #0d6efd);
+  color: var(--app-success-color, #198754);
   background: #dee2e6;
   transform: scale(1.05);
 }
 
 .payroll-page-container .sdrm-card-item.active .sdrm-item-icon {
-  background: linear-gradient(135deg, var(--app-primary-color, #0d6efd), var(--app-primary-dark, #0a58ca));
+  background: linear-gradient(135deg, var(--app-success-color, #198754), var(--app-success-dark, #146c43));
   color: white;
   box-shadow: 0 4px 10px rgba(0,0,0, 0.2);
 }
@@ -201,8 +201,8 @@
 
 .payroll-page-container .sdrm-search-box input:focus {
   outline: none;
-  border-color: var(--app-primary-color);
-  box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb), 0.1);
+  border-color: var(--app-success-color);
+  box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.1);
 }
 
 /* Hide Old Sidebar Styles */
@@ -294,7 +294,7 @@
 .payroll-page-container .sdrm-section-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--app-primary-color);
+  color: var(--app-success-color);
   margin-bottom: 1.25rem;
   display: flex;
   align-items: center;

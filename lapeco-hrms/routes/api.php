@@ -65,6 +65,11 @@ Route::post('/applicants', [ApplicantController::class, 'store']);
 Route::get('/positions', [PositionController::class, 'publicIndex']);
 Route::get('/departments', [DepartmentController::class, 'publicIndex']);
 
+// Debug route
+Route::get('/debug/payroll-requirements', function () {
+    return \App\Models\PayrollStatutoryRequirement::latest()->take(20)->get();
+});
+
 Route::get('/employees/{employee}/resume', [EmployeeController::class, 'serveResume'])->name('employee.resume');
 Route::middleware('auth:sanctum')->get('/applicants/{applicant}/resume/view', [ApplicantController::class, 'viewResume']);
 Route::middleware('auth:sanctum')->get('/applicants/{applicant}/resume/download', [ApplicantController::class, 'downloadResume']);
@@ -232,6 +237,7 @@ Route::middleware(['auth:sanctum', 'check.account.status'])->group(function () {
     Route::get('/statutory-deduction-rules/active/summary', [StatutoryDeductionRuleController::class, 'getActiveRulesSummary']);
     Route::get('/statutory-deduction-rules/{id}', [StatutoryDeductionRuleController::class, 'show']);
     Route::get('/statutory-deduction-rules/{id}/history', [StatutoryDeductionRuleController::class, 'getHistory']);
+    Route::get('/statutory-deduction-rules/{id}/payrolls', [StatutoryDeductionRuleController::class, 'getRelatedPayrolls']);
     Route::post('/statutory-deduction-rules', [StatutoryDeductionRuleController::class, 'store']);
     Route::put('/statutory-deduction-rules/{id}', [StatutoryDeductionRuleController::class, 'update']);
     Route::delete('/statutory-deduction-rules/{id}', [StatutoryDeductionRuleController::class, 'destroy']);

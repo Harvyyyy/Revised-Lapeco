@@ -111,8 +111,13 @@ class StatutoryDeductionService
                 $calculationBase = (float) $rule->maximum_salary;
             }
 
-            // If fixed amount is set, use that
-            if ($bracket->fixed_amount) {
+            // If fixed amount is set, use that (Unless it is Tax, which strictly uses rate based on gross salary)
+            if ($rule->deduction_type === 'Tax') {
+                $baseTax = (float) ($bracket->fixed_amount ?? 0);
+                $excess = max(0, $calculationBase - (float) $bracket->salary_from);
+                $taxOnExcess = $excess * ((float) $bracket->employee_rate / 100);
+                $employeeShare = round($baseTax + $taxOnExcess, 2);
+            } elseif ($bracket->fixed_amount) {
                 $employeeShare = (float) $bracket->fixed_amount;
             } else {
                 $employeeShare = round($calculationBase * ((float) $bracket->employee_rate / 100), 2);

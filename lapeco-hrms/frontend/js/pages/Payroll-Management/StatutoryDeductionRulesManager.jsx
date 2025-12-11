@@ -29,10 +29,8 @@ const StatutoryDeductionRulesManager = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('settings');
-  const [historyLogs, setHistoryLogs] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [modalTab, setModalTab] = useState('attributes');
+  const [relatedPayrolls, setRelatedPayrolls] = useState([]);
+  const [loadingPayrolls, setLoadingPayrolls] = useState(false);
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState({
@@ -49,19 +47,19 @@ const StatutoryDeductionRulesManager = () => {
 
   useEffect(() => {
     if (activeTab === 'history' && selectedRule) {
-      fetchHistory(selectedRule.id);
+      fetchRelatedPayrolls(selectedRule.id);
     }
   }, [activeTab, selectedRule]);
 
-  const fetchHistory = async (ruleId) => {
+  const fetchRelatedPayrolls = async (ruleId) => {
     try {
-      setLoadingHistory(true);
-      const response = await api.get(`/statutory-deduction-rules/${ruleId}/history`);
-      setHistoryLogs(response.data?.data || []);
+      setLoadingPayrolls(true);
+      const response = await api.get(`/statutory-deduction-rules/${ruleId}/payrolls`);
+      setRelatedPayrolls(response.data?.data || []);
     } catch (err) {
-      console.error('Error fetching history:', err);
+      console.error('Error fetching payrolls:', err);
     } finally {
-      setLoadingHistory(false);
+      setLoadingPayrolls(false);
     }
   };
 
@@ -85,6 +83,7 @@ const StatutoryDeductionRulesManager = () => {
 
     // Recalculate fixed amounts for SSS if missing or zero (to handle legacy data)
     let processedBrackets = rule.brackets || [];
+
     if (rule.deduction_type === 'SSS') {
         processedBrackets = processedBrackets.map(bracket => {
             const regularSS = parseFloat(bracket.regular_ss || 0);
@@ -329,6 +328,11 @@ const StatutoryDeductionRulesManager = () => {
   };
 
   const handleRemoveBracket = (index) => {
+    // Prevent removing the first row for Tax rules
+    if (formData.deduction_type === 'Tax' && index === 0) {
+        return;
+    }
+
     setFormData(prev => ({
       ...prev,
       brackets: prev.brackets.filter((_, i) => i !== index)
@@ -425,199 +429,6 @@ const StatutoryDeductionRulesManager = () => {
     }
   };
 
-  const formatChanges = (changes) => {
-    if (!changes) return null;
-    
-    const formatted = [];
-    
-    if (changes.attributes) {
-      Object.entries(changes.attributes).forEach(([key, value]) => {
-        if (key === 'updated_at') return;
-        // Check if it's a complex change object (old/new) or just a value
-        const isDetailed = typeof value === 'object' && value !== null && 'new' in value;
-        const newValue = isDetailed ? value.new : value;
-        const oldValue = isDetailed ? value.old : null;
-
-        formatted.push(
-          <div key={`attr-${key}`} className="history-change-item">
-            <span className="fw-bold text-capitalize">{key.replace(/_/g, ' ')}:</span> 
-            <span className="text-muted ms-2 text-break">
-                {isDetailed && oldValue !== null && (
-                    <span className="text-danger text-decoration-line-through me-2">
-                        {typeof oldValue === 'object' ? JSON.stringify(oldValue) : String(oldValue)}
-                    </span>
-                )}
-                <span className={isDetailed ? 'text-success' : ''}>
-                    {typeof newValue === 'object' ? JSON.stringify(newValue) : String(newValue)}
-                </span>
-            </span>
-          </div>
-        );
-      });
-    }
-    
-    if (changes.brackets) {
-        formatted.push(
-            <div key="brackets" className="history-change-item mt-2">
-                <span className="fw-bold text-primary"><i className="bi bi-table me-1"></i>Brackets Updated</span>
-                <div className="text-muted small ms-3">
-                    <div>Old: {changes.brackets.old?.length || 0} brackets</div>
-                    <div>New: {changes.brackets.new?.length || 0} brackets</div>
-                </div>
-            </div>
-        );
-    }
-    
-    return formatted.length > 0 ? formatted : <span className="text-muted">No specific changes recorded</span>;
-  };
-
-  const renderDetailModal = () => {
-    if (!selectedLog) return null;
-
-    const { changes } = selectedLog;
-    const oldBrackets = changes.brackets?.old || [];
-    const newBrackets = changes.brackets?.new || [];
-
-    return (
-        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-            <div className="modal-dialog modal-xl modal-dialog-scrollable">
-                <div className="modal-content">
-                    <div className="modal-header">
-                        <h5 className="modal-title">Change Details - {new Date(selectedLog.created_at).toLocaleString()}</h5>
-                        <button type="button" className="btn-close" onClick={() => setSelectedLog(null)}></button>
-                    </div>
-                    <div className="modal-body">
-                        <ul className="nav nav-tabs mb-3">
-                            <li className="nav-item">
-                                <button 
-                                    className={`nav-link ${modalTab === 'attributes' ? 'active' : ''}`}
-                                    onClick={() => setModalTab('attributes')}
-                                    type="button"
-                                >
-                                    Attributes
-                                </button>
-                            </li>
-                            {changes.brackets && (
-                                <li className="nav-item">
-                                    <button 
-                                        className={`nav-link ${modalTab === 'brackets' ? 'active' : ''}`}
-                                        onClick={() => setModalTab('brackets')}
-                                        type="button"
-                                    >
-                                        Brackets Comparison
-                                    </button>
-                                </li>
-                            )}
-                        </ul>
-                        <div className="tab-content">
-                            {modalTab === 'attributes' && (
-                                <div className="tab-pane fade show active">
-                                    {changes.attributes ? (
-                                        <table className="table table-bordered table-striped">
-                                            <thead>
-                                                <tr>
-                                                    <th>Field</th>
-                                                    <th>Old Value</th>
-                                                    <th>New Value</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {Object.entries(changes.attributes).map(([key, value]) => {
-                                                    if (key === 'updated_at') return null;
-                                                    const isDetailed = typeof value === 'object' && value !== null && 'new' in value;
-                                                    const newValue = isDetailed ? value.new : value;
-                                                    const oldValue = isDetailed ? value.old : '-';
-                                                    
-                                                    return (
-                                                        <tr key={key}>
-                                                            <td className="fw-bold text-capitalize">{key.replace(/_/g, ' ')}</td>
-                                                            <td className="text-danger">{typeof oldValue === 'object' ? JSON.stringify(oldValue) : String(oldValue)}</td>
-                                                            <td className="text-success">{typeof newValue === 'object' ? JSON.stringify(newValue) : String(newValue)}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <p className="text-muted">No attribute changes.</p>
-                                    )}
-                                </div>
-                            )}
-                            {modalTab === 'brackets' && changes.brackets && (
-                                <div className="tab-pane fade show active">
-                                    <div className="row">
-                                        <div className="col-md-6">
-                                            <h6 className="text-danger border-bottom pb-2">Previous Brackets ({oldBrackets.length})</h6>
-                                            <div className="table-responsive" style={{ maxHeight: '400px' }}>
-                                                <table className="table table-sm table-bordered text-muted">
-                                                    <thead className="table-light">
-                                                        <tr>
-                                                            <th>Range</th>
-                                                            {selectedRule?.deduction_type === 'SSS' && <th>Regular SS</th>}
-                                                            <th>EE %</th>
-                                                            <th>ER %</th>
-                                                            <th>EE Fix</th>
-                                                            <th>ER Fix</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {oldBrackets.map((b, i) => (
-                                                            <tr key={i}>
-                                                                <td>{b.salary_from} - {b.salary_to || 'Max'}</td>
-                                                                {selectedRule?.deduction_type === 'SSS' && <td>{b.regular_ss}</td>}
-                                                                <td>{b.employee_rate}</td>
-                                                                <td>{b.employer_rate}</td>
-                                                                <td>{b.fixed_amount}</td>
-                                                                <td>{b.fixed_employer_amount}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                        <div className="col-md-6">
-                                            <h6 className="text-success border-bottom pb-2">New Brackets ({newBrackets.length})</h6>
-                                            <div className="table-responsive" style={{ maxHeight: '400px' }}>
-                                                <table className="table table-sm table-bordered">
-                                                    <thead className="table-light">
-                                                        <tr>
-                                                            <th>Range</th>
-                                                            {selectedRule?.deduction_type === 'SSS' && <th>Regular SS</th>}
-                                                            <th>EE %</th>
-                                                            <th>ER %</th>
-                                                            <th>EE Fix</th>
-                                                            <th>ER Fix</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {newBrackets.map((b, i) => (
-                                                            <tr key={i}>
-                                                                <td>{b.salary_from} - {b.salary_to || 'Max'}</td>
-                                                                {selectedRule?.deduction_type === 'SSS' && <td>{b.regular_ss}</td>}
-                                                                <td>{b.employee_rate}</td>
-                                                                <td>{b.employer_rate}</td>
-                                                                <td>{b.fixed_amount}</td>
-                                                                <td>{b.fixed_employer_amount}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={() => setSelectedLog(null)}>Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-  };
-
   return (
     <div className="sdrm-container">
       <div className="sdrm-header">
@@ -625,7 +436,7 @@ const StatutoryDeductionRulesManager = () => {
           <h2>Statutory Deduction Rules</h2>
           <p className="text-muted mb-0">Manage deduction formulas, brackets, and rates</p>
         </div>
-        <button className="sdrm-btn sdrm-btn-primary" onClick={handleAddNew}>
+        <button className="sdrm-btn sdrm-btn-success" onClick={handleAddNew}>
           <i className="bi bi-plus-lg me-2"></i>Add New Rule
         </button>
       </div>
@@ -652,7 +463,7 @@ const StatutoryDeductionRulesManager = () => {
         {/* Horizontal Scrollable Header Cards */}
         <div className="sdrm-cards-scroll-container mb-4">
             <div 
-                className={`sdrm-card-item dashed-border d-flex align-items-center justify-content-center text-primary ${!selectedRule && showForm ? 'active' : ''}`}
+                className={`sdrm-card-item dashed-border d-flex align-items-center justify-content-center text-success ${!selectedRule && showForm ? 'active' : ''}`}
                 onClick={handleAddNew}
                 style={{ minWidth: '200px' }}
             >
@@ -719,14 +530,14 @@ const StatutoryDeductionRulesManager = () => {
               <div className="d-flex align-items-center justify-content-between border-bottom px-3 bg-light">
                   <div className="d-flex">
                       <button 
-                          className={`btn rounded-0 py-3 px-4 ${activeTab === 'settings' ? 'text-primary fw-bold bg-white' : 'text-muted'}`}
+                          className={`btn rounded-0 py-3 px-4 ${activeTab === 'settings' ? 'text-success fw-bold bg-white' : 'text-muted'}`}
                           onClick={() => setActiveTab('settings')}
                       >
                           <i className="bi bi-sliders me-2"></i>Settings
                       </button>
                       {selectedRule && (
                           <button 
-                              className={`btn rounded-0 py-3 px-4 ${activeTab === 'history' ? 'text-primary fw-bold bg-white' : 'text-muted'}`}
+                              className={`btn rounded-0 py-3 px-4 ${activeTab === 'history' ? 'text-success fw-bold bg-white' : 'text-muted'}`}
                               onClick={() => setActiveTab('history')}
                           >
                               <i className="bi bi-clock-history me-2"></i>History
@@ -933,7 +744,7 @@ const StatutoryDeductionRulesManager = () => {
                       <button
                         type="button"
                         onClick={handleAddBracket}
-                        className="btn btn-sm btn-outline-primary"
+                        className="btn btn-sm btn-outline-success"
                       >
                         <i className="bi bi-plus-lg me-1"></i>Add Row
                       </button>
@@ -956,7 +767,11 @@ const StatutoryDeductionRulesManager = () => {
                       {['SSS', 'Pag-IBIG'].includes(formData.deduction_type) && (
                         <div className="sdrm-bracket-col">ER Rate (%)</div>
                       )}
-                      <div className="sdrm-bracket-col">EE Share (₱)</div>
+                      {formData.deduction_type !== 'Tax' && (
+                        <div className="sdrm-bracket-col">
+                          {formData.deduction_type === 'Tax' ? 'Base Tax (₱)' : 'EE Share (₱)'}
+                        </div>
+                      )}
                       {['SSS', 'Pag-IBIG'].includes(formData.deduction_type) && (
                         <div className="sdrm-bracket-col">ER Share (₱)</div>
                       )}
@@ -982,12 +797,12 @@ const StatutoryDeductionRulesManager = () => {
                                 <span className="input-group-text">₱</span>
                                 <input
                                   type="number"
-                                  value={bracket.salary_from}
+                                  value={(formData.deduction_type === 'Tax' && index === 0) ? 0 : bracket.salary_from}
                                   onChange={(e) => handleBracketChange(index, 'salary_from', e.target.value)}
                                   step="0.01"
                                   className="form-control"
                                   placeholder="0.00"
-                                  readOnly={formData.deduction_type === 'SSS'}
+                                  readOnly={formData.deduction_type === 'SSS' || (formData.deduction_type === 'Tax' && index === 0)}
                                 />
                               </div>
                             </div>
@@ -1027,11 +842,12 @@ const StatutoryDeductionRulesManager = () => {
                               <div className="input-group input-group-sm">
                                 <input
                                   type="number"
-                                  value={bracket.employee_rate || ''}
+                                  value={(formData.deduction_type === 'Tax' && index === 0) ? 0 : (bracket.employee_rate || '')}
                                   onChange={(e) => handleBracketChange(index, 'employee_rate', e.target.value)}
                                   step="0.01"
                                   className="form-control"
                                   placeholder="0"
+                                  readOnly={formData.deduction_type === 'Tax' && index === 0}
                                 />
                                 <span className="input-group-text">%</span>
                               </div>
@@ -1053,20 +869,22 @@ const StatutoryDeductionRulesManager = () => {
                               </div>
                             )}
                             
-                            <div className="sdrm-bracket-field">
-                              <div className="input-group input-group-sm">
-                                <span className="input-group-text">₱</span>
-                                <input
-                                  type="number"
-                                  value={bracket.fixed_amount || ''}
-                                  onChange={(e) => handleBracketChange(index, 'fixed_amount', e.target.value)}
-                                  step="0.01"
-                                  className="form-control"
-                                  placeholder="0.00"
-                                  readOnly={formData.deduction_type === 'SSS'}
-                                />
+                            {formData.deduction_type !== 'Tax' && (
+                              <div className="sdrm-bracket-field">
+                                <div className="input-group input-group-sm">
+                                  <span className="input-group-text">₱</span>
+                                  <input
+                                    type="number"
+                                    value={bracket.fixed_amount || ''}
+                                    onChange={(e) => handleBracketChange(index, 'fixed_amount', e.target.value)}
+                                    step="0.01"
+                                    className="form-control"
+                                    placeholder="0.00"
+                                    readOnly={formData.deduction_type === 'SSS'}
+                                  />
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             {['SSS', 'Pag-IBIG'].includes(formData.deduction_type) && (
                               <div className="sdrm-bracket-field">
@@ -1086,14 +904,16 @@ const StatutoryDeductionRulesManager = () => {
                             )}
                             
                             <div className="sdrm-bracket-action text-end">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveBracket(index)}
-                                className="btn btn-sm btn-outline-danger border-0"
-                                title="Remove Bracket"
-                              >
-                                <i className="bi bi-trash"></i>
-                              </button>
+                              {!(formData.deduction_type === 'Tax' && index === 0) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBracket(index)}
+                                  className="btn btn-sm btn-outline-danger border-0"
+                                  title="Remove Bracket"
+                                >
+                                  <i className="bi bi-trash"></i>
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))
@@ -1178,64 +998,66 @@ const StatutoryDeductionRulesManager = () => {
               </>
               ) : (
                   <div className="sdrm-history p-4 bg-white" style={{ minHeight: '400px' }}>
-                    <h4 className="sdrm-section-title mb-4"><i className="bi bi-clock-history me-2"></i>Change History</h4>
+                    <h4 className="sdrm-section-title mb-4"><i className="bi bi-clock-history me-2"></i>Payroll History</h4>
                     
-                    {loadingHistory ? (
-                      [1, 2, 3].map(n => (
-                        <div key={n} className="card mb-3 border-0 shadow-sm history-log-card skeleton-card">
-                           <div className="card-body">
-                             <div className="d-flex justify-content-between align-items-start mb-2">
-                                <div className="skeleton-text" style={{width: '150px'}}></div>
-                                <div className="skeleton-text" style={{width: '100px'}}></div>
-                             </div>
-                             <div className="history-changes bg-light p-3 rounded mt-2">
-                                <div className="skeleton-text mb-1" style={{width: '80%'}}></div>
-                                <div className="skeleton-text" style={{width: '60%'}}></div>
-                             </div>
-                           </div>
-                        </div>
-                      ))
-                    ) : historyLogs.length === 0 ? (
+                    {loadingPayrolls ? (
+                      <div className="table-responsive">
+                        <table className="table table-hover align-middle">
+                          <thead className="table-light">
+                            <tr>
+                              <th>Payroll Period</th>
+                              <th>Employees Processed</th>
+                              <th>Total Employee Share</th>
+                              {['SSS', 'Pag-IBIG', 'PhilHealth'].includes(selectedRule.deduction_type) && <th>Total Employer Share</th>}
+                              <th>Date Processed</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[1, 2, 3, 4, 5].map(n => (
+                              <tr key={n} className="skeleton-card">
+                                <td><div className="skeleton-text" style={{width: '180px'}}></div></td>
+                                <td><div className="skeleton-text" style={{width: '50px'}}></div></td>
+                                <td><div className="skeleton-text" style={{width: '100px'}}></div></td>
+                                {['SSS', 'Pag-IBIG', 'PhilHealth'].includes(selectedRule.deduction_type) && (
+                                  <td><div className="skeleton-text" style={{width: '100px'}}></div></td>
+                                )}
+                                <td><div className="skeleton-text" style={{width: '120px'}}></div></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : relatedPayrolls.length === 0 ? (
                       <div className="text-center py-5 text-muted rounded bg-light">
                         <i className="bi bi-info-circle fs-1 mb-2"></i>
-                        <p>No changes recorded for this rule yet.</p>
+                        <p>No payrolls found using this rule yet.</p>
                       </div>
                     ) : (
-                      <div className="timeline">
-                        {historyLogs.map((log) => (
-                          <div 
-                            key={log.id} 
-                            className="card mb-3 border-0 shadow-sm history-log-card"
-                            onClick={() => {
-                              setSelectedLog(log);
-                              setModalTab('attributes');
-                            }}
-                            style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.01)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                          >
-                            <div className="card-body">
-                              <div className="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                  <span className={`badge ${log.action === 'created' ? 'bg-success' : log.action === 'updated' ? 'bg-primary' : 'bg-danger'} me-2 text-uppercase`}>
-                                    {log.action}
-                                  </span>
-                                  <span className="fw-bold text-dark">{log.user}</span>
-                                </div>
-                                <small className="text-muted">
-                                  {new Date(log.created_at).toLocaleString()}
-                                </small>
-                              </div>
-                              
-                              <div className="history-changes bg-light p-3 rounded mt-2">
-                                {formatChanges(log.changes)}
-                              </div>
-                              <div className="text-center mt-2">
-                                <small className="text-primary">Click to view full details</small>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="table-responsive">
+                        <table className="table table-hover align-middle">
+                          <thead className="table-light">
+                            <tr>
+                              <th>Payroll Period</th>
+                              <th>Employees Processed</th>
+                              <th>Total Employee Share</th>
+                              {['SSS', 'Pag-IBIG', 'PhilHealth'].includes(selectedRule.deduction_type) && <th>Total Employer Share</th>}
+                              <th>Date Processed</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {relatedPayrolls.map((payroll) => (
+                              <tr key={payroll.id}>
+                                <td className="fw-bold">{payroll.payroll_period}</td>
+                                <td>{payroll.employee_count}</td>
+                                <td className="text-danger">₱{parseFloat(payroll.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                {['SSS', 'Pag-IBIG', 'PhilHealth'].includes(selectedRule.deduction_type) && (
+                                  <td className="text-muted">₱{parseFloat(payroll.total_employer_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                )}
+                                <td className="text-muted small">{new Date(payroll.created_at).toLocaleDateString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
@@ -1259,8 +1081,6 @@ const StatutoryDeductionRulesManager = () => {
           }
         }}
       />
-      
-      {renderDetailModal()}
     </div>
   );
 };

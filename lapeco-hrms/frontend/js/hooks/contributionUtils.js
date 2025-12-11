@@ -48,7 +48,7 @@ const evaluateFormula = (formula, variables) => {
  * Uses the provided rule object to calculate deductions.
  */
 export const calculateDeductionFromRule = (salary, rule, isProvisional = false) => {
-    if (!rule) return { employeeShare: 0, employerShare: 0, total: 0 };
+    if (!rule) return { employeeShare: 0, employerShare: 0, total: 0, breakdown: [] };
 
     const monthlyEquivalent = isProvisional ? salary * 2 : salary;
     const context = {
@@ -60,39 +60,55 @@ export const calculateDeductionFromRule = (salary, rule, isProvisional = false) 
 
     let employeeShare = 0;
     let employerShare = 0;
+    let breakdown = [];
 
     // 1. Fixed Percentage
     if (rule.rule_type === 'fixed_percentage') {
+        breakdown.push({ type: 'header', label: 'Rule Type', value: 'Fixed Percentage' });
+        breakdown.push({ type: 'info', label: 'Basis', value: `${isProvisional ? 'Semi-Monthly Gross x 2' : 'Gross Income'} = ${monthlyEquivalent.toLocaleString()}` });
+
         if (rule.minimum_salary && monthlyEquivalent < rule.minimum_salary) {
-            return { employeeShare: 0, employerShare: 0, total: 0 };
+            breakdown.push({ type: 'warning', label: 'Below Minimum Salary', value: `${rule.minimum_salary}. Deduction: 0` });
+            return { employeeShare: 0, employerShare: 0, total: 0, breakdown };
         }
 
         let applicableSalary = monthlyEquivalent;
         if (rule.maximum_salary && monthlyEquivalent > rule.maximum_salary) {
             applicableSalary = rule.maximum_salary;
+            breakdown.push({ type: 'warning', label: 'Capped at Maximum Salary', value: rule.maximum_salary.toLocaleString() });
         }
 
         // Employee Share
         if (rule.employee_rate !== undefined && rule.employee_rate !== null) {
             employeeShare = (applicableSalary * (rule.employee_rate / 100));
+            breakdown.push({ type: 'calculation', label: 'Monthly Employee Share', value: `${applicableSalary.toLocaleString()} * ${rule.employee_rate}% = ${employeeShare.toLocaleString()}` });
         } else {
             employeeShare = (applicableSalary * (rule.fixed_percentage / 100));
+            breakdown.push({ type: 'calculation', label: 'Monthly Employee Share', value: `${applicableSalary.toLocaleString()} * ${rule.fixed_percentage}% = ${employeeShare.toLocaleString()}` });
+        }
+
+        if (isProvisional) {
+            breakdown.push({ type: 'result', label: 'Semi-Monthly Share', value: `${employeeShare.toLocaleString()} / 2 = ${(employeeShare / 2).toLocaleString()}` });
         }
 
         // Employer Share
         if (rule.employer_rate !== undefined && rule.employer_rate !== null) {
             employerShare = (applicableSalary * (rule.employer_rate / 100));
+            // breakdown.push({ type: 'calculation', label: 'Employer Share', value: `${applicableSalary.toLocaleString()} * ${rule.employer_rate}% = ${employerShare.toLocaleString()}` });
         } else {
-            // Default behavior if employer rate is missing (assumes 0 or handled by fixed_percentage splitting if logic existed, 
-            // but previous code only calculated employeeShare from fixed_percentage and employerShare was 0 implicitly)
+            // Default behavior if employer rate is missing
             employerShare = 0;
         }
     }
 
     // 2. Salary Bracket
     else if (rule.rule_type === 'salary_bracket' && rule.brackets) {
+        breakdown.push({ type: 'header', label: 'Rule Type', value: 'Salary Bracket' });
+        breakdown.push({ type: 'info', label: 'Basis', value: `${isProvisional ? 'Semi-Monthly Gross x 2' : 'Gross Income'} = ${monthlyEquivalent.toLocaleString()}` });
+
         if (rule.minimum_salary && monthlyEquivalent < rule.minimum_salary) {
-            return { employeeShare: 0, employerShare: 0, total: 0 };
+            breakdown.push({ type: 'warning', label: 'Below Minimum Salary', value: `${rule.minimum_salary}. Deduction: 0` });
+            return { employeeShare: 0, employerShare: 0, total: 0, breakdown };
         }
 
         const brackets = [...rule.brackets].sort((a, b) => a.sort_order - b.sort_order);
@@ -102,29 +118,70 @@ export const calculateDeductionFromRule = (salary, rule, isProvisional = false) 
             const to = bracket.salary_to ? parseFloat(bracket.salary_to) : Infinity;
 
             if (monthlyEquivalent >= from && monthlyEquivalent <= to) {
+                breakdown.push({ type: 'info', label: 'Bracket Found', value: `${from.toLocaleString()} - ${to === Infinity ? 'Unlimited' : to.toLocaleString()}` });
+
                 // Determine base for calculation (Salary or MSC/Regular SS)
                 let calculationBase = monthlyEquivalent;
                 
-                // If regular_ss (MSC) is defined in the bracket, use it as the base
-                if (bracket.regular_ss && parseFloat(bracket.regular_ss) > 0) {
+                // If regular_ss (MSC) is defined in the bracket AND it is not Tax, use it as the base
+                // For Tax, we always use the actual taxable income (monthlyEquivalent)
+                if (rule.deduction_type !== 'Tax' && bracket.regular_ss && parseFloat(bracket.regular_ss) > 0) {
                     calculationBase = parseFloat(bracket.regular_ss);
-                } else if (rule.maximum_salary && calculationBase > rule.maximum_salary) {
-                    // Fallback to max salary cap if no MSC is defined
+                    breakdown.push({ type: 'info', label: 'Using Regular SS (MSC) as Base', value: calculationBase.toLocaleString() });
+                } else if (rule.deduction_type !== 'Tax' && rule.maximum_salary && calculationBase > rule.maximum_salary) {
+                    // Fallback to max salary cap if no MSC is defined (and not Tax)
                     calculationBase = rule.maximum_salary;
+                    breakdown.push({ type: 'warning', label: 'Capped at Maximum Salary', value: calculationBase.toLocaleString() });
                 }
 
                 // Employee Share
-                if (bracket.fixed_amount > 0) {
+                // For Tax, we calculate based on the excess over the lower bracket limit
+                if (rule.deduction_type === 'Tax') {
+                    // Standard Tax Formula: Base Tax + ((Income - Lower Limit) * Rate)
+                    // If user cleared fixed_amount, Base Tax is 0.
+                    const baseTax = bracket.fixed_amount ? parseFloat(bracket.fixed_amount) : 0;
+                    const excess = Math.max(0, calculationBase - from);
+                    const taxOnExcess = excess * (bracket.employee_rate / 100);
+                    
+                    employeeShare = baseTax + taxOnExcess;
+                    
+                    if (baseTax > 0) {
+                        breakdown.push({ type: 'formula', label: 'Formula', value: 'Fixed Tax + ((Income - Lower Limit) * Rate)' });
+                        breakdown.push({ type: 'info', label: 'Fixed Tax', value: baseTax.toLocaleString() });
+                    } else {
+                        breakdown.push({ type: 'formula', label: 'Formula', value: '(Income - Lower Limit) * Rate' });
+                    }
+                    
+                    breakdown.push({ type: 'calculation', label: 'Excess', value: `${calculationBase.toLocaleString()} - ${from.toLocaleString()} (Lower Limit) = ${excess.toLocaleString()}` });
+            breakdown.push({ type: 'calculation', label: 'Tax on Excess', value: `${excess.toLocaleString()} * ${bracket.employee_rate}% = ${taxOnExcess.toLocaleString()}` });
+            breakdown.push({ type: 'result', label: 'Total Monthly Tax', value: employeeShare.toLocaleString() });
+            
+            if (isProvisional) {
+                breakdown.push({ type: 'result', label: 'Semi-Monthly Tax', value: `${employeeShare.toLocaleString()} / 2 = ${(employeeShare / 2).toLocaleString()}` });
+            }
+        } else if (bracket.fixed_amount > 0) {
                     employeeShare = parseFloat(bracket.fixed_amount);
+                    breakdown.push({ type: 'info', label: 'Monthly Employee Share', value: `Fixed Amount = ${employeeShare.toLocaleString()}` });
+                    if (isProvisional) {
+                        breakdown.push({ type: 'result', label: 'Semi-Monthly Share', value: `${employeeShare.toLocaleString()} / 2 = ${(employeeShare / 2).toLocaleString()}` });
+                    }
                 } else {
                     employeeShare = calculationBase * (bracket.employee_rate / 100);
+                    breakdown.push({ type: 'calculation', label: 'Monthly Employee Share', value: `${calculationBase.toLocaleString()} * ${bracket.employee_rate}% = ${employeeShare.toLocaleString()}` });
+                    if (isProvisional) {
+                        breakdown.push({ type: 'result', label: 'Semi-Monthly Share', value: `${employeeShare.toLocaleString()} / 2 = ${(employeeShare / 2).toLocaleString()}` });
+                    }
                 }
 
                 // Employer Share
-                if (bracket.fixed_employer_amount > 0) {
-                    employerShare = parseFloat(bracket.fixed_employer_amount);
-                } else {
-                    employerShare = calculationBase * (bracket.employer_rate / 100);
+                if (rule.deduction_type !== 'Tax') {
+                    if (bracket.fixed_employer_amount > 0) {
+                        employerShare = parseFloat(bracket.fixed_employer_amount);
+                        // breakdown.push({ type: 'result', label: 'Employer Share', value: `Fixed Amount = ${employerShare.toLocaleString()}` });
+                    } else {
+                        employerShare = calculationBase * (bracket.employer_rate / 100);
+                        // breakdown.push({ type: 'calculation', label: 'Employer Share', value: `${calculationBase.toLocaleString()} * ${bracket.employer_rate}% = ${employerShare.toLocaleString()}` });
+                    }
                 }
                 break; 
             }
@@ -133,6 +190,7 @@ export const calculateDeductionFromRule = (salary, rule, isProvisional = false) 
 
     // 3. Custom Formula
     else if (rule.rule_type === 'custom_formula' && rule.formula) {
+        breakdown.push({ type: 'header', label: 'Rule Type', value: 'Custom Formula' });
         let formulaObj = rule.formula;
         
         // Parse JSON string if needed
@@ -141,15 +199,22 @@ export const calculateDeductionFromRule = (salary, rule, isProvisional = false) 
                 formulaObj = JSON.parse(formulaObj);
             } catch (e) {
                 console.error('Failed to parse formula JSON:', e);
-                formulaObj = {};
+                return { employeeShare: 0, employerShare: 0, total: 0, breakdown: [{ type: 'error', label: 'Error', value: 'Invalid Formula JSON' }] };
             }
         }
 
         if (formulaObj.employee_formula) {
             employeeShare = evaluateFormula(formulaObj.employee_formula, context);
+            breakdown.push({ type: 'formula', label: 'Formula (Employee)', value: formulaObj.employee_formula });
+            breakdown.push({ type: 'result', label: 'Monthly Employee Share', value: employeeShare.toLocaleString() });
+
+            if (isProvisional) {
+                breakdown.push({ type: 'result', label: 'Semi-Monthly Share', value: `${employeeShare.toLocaleString()} / 2 = ${(employeeShare / 2).toLocaleString()}` });
+            }
         }
         if (formulaObj.employer_formula) {
             employerShare = evaluateFormula(formulaObj.employer_formula, context);
+            // breakdown.push({ type: 'formula', label: 'Formula (Employer)', value: formulaObj.employer_formula });
         }
     }
 
@@ -168,6 +233,7 @@ export const calculateDeductionFromRule = (salary, rule, isProvisional = false) 
         employeeShare: parseFloat((employeeShare / divisor).toFixed(2)),
         employerShare: parseFloat((employerShare / divisor).toFixed(2)),
         total: parseFloat(((employeeShare + employerShare) / divisor).toFixed(2)),
+        breakdown,
     };
 };
 
