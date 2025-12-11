@@ -802,7 +802,7 @@ const StatutoryDeductionRulesManager = () => {
                                   step="0.01"
                                   className="form-control"
                                   placeholder="0.00"
-                                  readOnly={formData.deduction_type === 'SSS' || (formData.deduction_type === 'Tax' && index === 0)}
+                                  readOnly={(formData.deduction_type === 'Tax' && index === 0)}
                                 />
                               </div>
                             </div>
@@ -816,7 +816,6 @@ const StatutoryDeductionRulesManager = () => {
                                   step="0.01"
                                   className="form-control"
                                   placeholder="Unlimited"
-                                  readOnly={formData.deduction_type === 'SSS'}
                                 />
                               </div>
                             </div>
@@ -832,7 +831,6 @@ const StatutoryDeductionRulesManager = () => {
                                     step="0.01"
                                     className="form-control"
                                     placeholder="0.00"
-                                    readOnly={true}
                                   />
                                 </div>
                               </div>
