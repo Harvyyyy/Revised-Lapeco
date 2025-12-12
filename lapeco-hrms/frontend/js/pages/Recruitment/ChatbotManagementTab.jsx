@@ -241,7 +241,14 @@ const ChatbotManagementTab = () => {
                       </td>
                       <td className="question-cell">
                         {editingId === item.id ? (
-                          <input type="text" className="form-control form-control-sm" value={item.question || ''} onChange={e => updateField(item.id, 'question', e.target.value)} />
+                          <input 
+                            type="text" 
+                            className="form-control form-control-sm" 
+                            value={item.question || ''} 
+                            onChange={e => updateField(item.id, 'question', e.target.value)} 
+                            disabled={!!item.dynamic_handler}
+                            title={item.dynamic_handler ? "Dynamic questions cannot be renamed" : ""}
+                          />
                         ) : (
                           <span className="qa-text question-text">{item.question}</span>
                         )}
@@ -267,7 +274,14 @@ const ChatbotManagementTab = () => {
                         ) : (
                           <div className="action-buttons">
                             <button className="btn btn-sm btn-outline-primary" onClick={() => startEdit(item.id)} title="Edit"><i className="bi bi-pencil"></i></button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => confirmDelete(item)} title="Delete"><i className="bi bi-trash"></i></button>
+                            <button 
+                              className="btn btn-sm btn-outline-danger" 
+                              onClick={() => confirmDelete(item)} 
+                              title={item.dynamic_handler ? "System Q&A cannot be deleted" : "Delete"}
+                              disabled={!!item.dynamic_handler}
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
                           </div>
                         )}
                       </td>
