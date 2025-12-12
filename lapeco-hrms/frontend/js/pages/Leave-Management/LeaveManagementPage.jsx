@@ -48,6 +48,7 @@ const LeaveManagementPage = () => {
     }
   });
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const hasModule = currentUser?.position?.allowed_modules?.includes('leave_management') || currentUser?.position?.allowed_modules?.includes('leave');
   
   const { generateReport, pdfDataUri, isLoading, setPdfDataUri } = useReportGenerator();
   const [showReportPreview, setShowReportPreview] = useState(false);
@@ -298,21 +299,68 @@ const LeaveManagementPage = () => {
     }
   };
 
-  const handleMarkCashStatus = async (status, id = null) => {
+  const handleMarkCashStatus = async (status, recordOrId = null) => {
     try {
-      if (id) {
-        const response = await leaveCashConversionAPI.updateStatus(id, status);
+      let id = null;
+      let targetRecord = null;
+
+      if (recordOrId && typeof recordOrId === 'object') {
+        id = recordOrId.id;
+        targetRecord = recordOrId;
+      } else {
+        id = recordOrId;
+      }
+
+      if (id || targetRecord) {
+        // Single record update
+        let finalId = id;
+
+        // If no ID (preview record), generate it first
+        if (!finalId && targetRecord) {
+            setMarkingCash(true); // Ensure loading state
+            try {
+                // Generate record for specific user
+                const genRes = await leaveCashConversionAPI.generate({ 
+                    year: cashYear, 
+                    user_id: targetRecord.userId 
+                });
+                
+                const generatedRecords = genRes?.data?.records || [];
+                // Find the record for this user
+                const newRecord = generatedRecords.find(r => r.userId === targetRecord.userId);
+                
+                if (!newRecord) throw new Error('Failed to generate record.');
+                
+                finalId = newRecord.id;
+                
+                // Update local state with the new record immediately to prevent UI flicker
+                 setCashRecords(prev => prev.map(r => {
+                    if (r.userId === targetRecord.userId) {
+                        return { ...r, ...newRecord };
+                    }
+                    return r;
+                 }));
+
+            } catch (err) {
+                console.error("Auto-generation failed:", err);
+                throw new Error("Failed to initialize record for this employee.");
+            }
+        }
+
+        if (!finalId) throw new Error("Missing Record ID");
+
+        const response = await leaveCashConversionAPI.updateStatus(finalId, status);
         const payload = response?.data || {};
         
         // Add to interacted IDs to keep visible
         setInteractedIds(prev => {
             const next = new Set(prev);
-            next.add(id);
+            next.add(finalId);
             return next;
         });
 
         setCashRecords(prev => prev.map(record => {
-          if (record.id !== id) return record;
+          if (record.id !== finalId) return record;
           return {
             ...record,
             status: payload.status || status,
@@ -322,6 +370,7 @@ const LeaveManagementPage = () => {
         }));
         showToast({ message: 'Status updated.', type: 'success' });
       } else {
+        // Bulk update
         setMarkingCash(true);
         await leaveCashConversionAPI.markAll({ year: cashYear, status });
 
@@ -344,10 +393,10 @@ const LeaveManagementPage = () => {
       }
       await loadCashConversion(cashYear);
     } catch (err) {
-      const message = err?.response?.data?.message || 'Failed to update status.';
+      const message = err?.response?.data?.message || err.message || 'Failed to update status.';
       showToast({ message, type: 'danger' });
     } finally {
-      if (!id) {
+      if (!recordOrId || (typeof recordOrId === 'object' && !recordOrId.id)) {
         setMarkingCash(false);
       }
     }
@@ -686,7 +735,7 @@ const LeaveManagementPage = () => {
                                           <button 
                                             className="btn btn-sm btn-outline-success" 
                                             title="Approve"
-                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Approved', record.id), 'Approve Request', `Approve cash conversion for ${record.name}?`, 'success', 'Approve')}
+                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Approved', record), 'Approve Request', `Approve cash conversion for ${record.name}?`, 'success', 'Approve')}
                                             disabled={loadingCash || markingCash}
                                           >
                                             <i className="bi bi-check-lg"></i>
@@ -694,7 +743,7 @@ const LeaveManagementPage = () => {
                                           <button 
                                             className="btn btn-sm btn-outline-danger" 
                                             title="Decline"
-                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Declined', record.id), 'Decline Request', `Decline cash conversion for ${record.name}?`, 'danger', 'Decline')}
+                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Declined', record), 'Decline Request', `Decline cash conversion for ${record.name}?`, 'danger', 'Decline')}
                                             disabled={loadingCash || markingCash}
                                           >
                                             <i className="bi bi-x-lg"></i>
@@ -705,19 +754,30 @@ const LeaveManagementPage = () => {
                                          <button 
                                             className="btn btn-sm btn-outline-secondary ms-1" 
                                             title="Reset to Pending"
-                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Pending', record.id), 'Reset Status', `Reset status for ${record.name} to Pending?`, 'warning', 'Reset')}
+                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Pending', record), 'Reset Status', `Reset status for ${record.name} to Pending?`, 'warning', 'Reset')}
                                             disabled={loadingCash || markingCash}
                                           >
                                             <i className="bi bi-arrow-counterclockwise"></i>
                                           </button>
                                       )}
+                                      {record.status === 'Paid' && (
+                                         <button 
+                                            className="btn btn-sm btn-outline-secondary" 
+                                            title="Revert Payment Status"
+                                            onClick={() => initiateConfirmation(() => handleMarkCashStatus('Approved', record), 'Revert Payment', 'Revert status to Approved? This will clear the payment date.', 'warning', 'Revert')}
+                                            disabled={loadingCash || markingCash}
+                                          >
+                                            <i className="bi bi-arrow-counterclockwise me-1"></i>
+                                          </button>
+                                      )}
                                     </>
                                   ) : (
                                     <>
-                                      {((record.status || 'Pending') === 'Pending') && (
+                                      {/* Assigned Employees Logic */}
+                                      {(record.status === 'Pending') && (
                                         <button 
                                           className="btn btn-sm btn-primary"
-                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Submitted', record.id), 'Submit Request', 'Submit your leave cash conversion request?', 'primary', 'Submit')}
+                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Submitted', record), 'Submit Request', 'Submit leave cash conversion request?', 'primary', 'Submit')}
                                           disabled={loadingCash || markingCash}
                                         >
                                           Submit
@@ -726,7 +786,7 @@ const LeaveManagementPage = () => {
                                       {record.status === 'Submitted' && (
                                         <button 
                                           className="btn btn-sm btn-outline-secondary"
-                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Pending', record.id), 'Revert Submission', 'Revert your submission to Pending?', 'warning', 'Revert')}
+                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Pending', record), 'Revert Submission', 'Revert submission to Pending?', 'warning', 'Revert')}
                                           disabled={loadingCash || markingCash}
                                         >
                                           Revert
@@ -736,7 +796,7 @@ const LeaveManagementPage = () => {
                                         <button 
                                           className="btn btn-sm btn-success"
                                           title="Mark Paid"
-                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Paid', record.id), 'Mark as Paid', 'Mark this request as Paid? This action will record the payment date.', 'success', 'Mark Paid')}
+                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Paid', record), 'Mark as Paid', 'Mark this request as Paid? This action will record the payment date.', 'success', 'Mark Paid')}
                                           disabled={loadingCash || markingCash}
                                         >
                                           <i className="bi bi-check-lg"></i>
@@ -744,12 +804,12 @@ const LeaveManagementPage = () => {
                                       )}
                                       {record.status === 'Paid' && (
                                         <button 
-                                          className="btn btn-sm btn-outline-warning text-dark"
-                                          title="Revert Payment"
-                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Approved', record.id), 'Revert Payment', 'Revert payment status to Approved? This will clear the payment record.', 'warning', 'Revert Payment')}
+                                          className="btn btn-sm btn-outline-secondary"
+                                          title="Revert Payment Status"
+                                          onClick={() => initiateConfirmation(() => handleMarkCashStatus('Approved', record), 'Revert Payment', 'Revert status to Approved? This will clear the payment date.', 'warning', 'Revert')}
                                           disabled={loadingCash || markingCash}
                                         >
-                                          <i className="bi bi-arrow-counterclockwise"></i>
+                                          <i className="bi bi-arrow-counterclockwise me-1"></i>
                                         </button>
                                       )}
                                     </>
