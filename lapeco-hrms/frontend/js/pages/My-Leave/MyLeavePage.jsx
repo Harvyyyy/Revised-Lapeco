@@ -73,6 +73,42 @@ const MyLeavePage = () => {
 
   const handleCashStatusUpdate = async (newStatus) => {
     if (!cashRecord) return;
+
+    // Handle preview records (no ID) by generating them first
+    if (!cashRecord.id) {
+      try {
+        setMarkingCash(true);
+        // Generate the record first
+        const genRes = await leaveCashConversionAPI.generate({ year: cashYear, scope: 'self' });
+        const generatedRecords = genRes?.data?.records || [];
+        
+        if (generatedRecords.length === 0) {
+          throw new Error('Failed to generate record.');
+        }
+
+        const newRecord = generatedRecords[0];
+        
+        // If the intention was to submit, and the record is Pending, update it
+        if (newStatus === 'Submitted' && newRecord.status === 'Pending') {
+           const updateRes = await leaveCashConversionAPI.updateStatus(newRecord.id, newStatus);
+           if (updateRes?.data) {
+             setCashRecord(prev => ({ ...prev, ...newRecord, status: updateRes.data.status, id: newRecord.id }));
+             setToast({ show: true, message: 'Request submitted successfully.', type: 'success' });
+           }
+        } else {
+           // If for some reason we just needed to generate (or status was already correct)
+           setCashRecord(prev => ({ ...prev, ...newRecord, id: newRecord.id }));
+           setToast({ show: true, message: 'Request generated successfully.', type: 'success' });
+        }
+      } catch (err) {
+        console.error('Failed to process request:', err);
+        setToast({ show: true, message: 'Failed to process request.', type: 'error' });
+      } finally {
+        setMarkingCash(false);
+      }
+      return;
+    }
+
     try {
       setMarkingCash(true);
       const res = await leaveCashConversionAPI.updateStatus(cashRecord.id, newStatus);

@@ -25,73 +25,88 @@ class LeaveCashConversionController extends Controller
         $isSuperAdmin = $user->role === 'SUPER_ADMIN';
         $hasModule = $this->hasModule($user, 'leave_management');
         $isSelf = $request->query('scope') === 'self';
+        $isAdminOrManager = !$isSelf && ($isSuperAdmin || $hasModule);
 
+        // Fetch stored conversions
         $query = LeaveCashConversion::with(['user.position'])
             ->forYear($year)
             ->orderByDesc('total_amount');
 
-        if ($isSelf || (!$isSuperAdmin && !$hasModule)) {
+        if (!$isAdminOrManager) {
             $query->where('user_id', $user->id);
         }
 
         $conversions = $query->get();
+        $storedRecords = $conversions->map(fn($c) => $this->transformConversion($c));
 
-        if ($conversions->isEmpty()) {
-            if (!$isSelf && ($isSuperAdmin || $hasModule)) {
-                [$payloads, $records] = $this->computeConversions($year);
-                $source = 'preview';
-            } else {
-                // If checking for self, checking credits specifically for self
-                if ($isSelf) {
+        // If regular user or self-scope, just return what we found (or generate preview if empty)
+        if (!$isAdminOrManager) {
+             if ($storedRecords->isEmpty()) {
+                 if ($isSelf) {
                      [$payloads, $records] = $this->computeConversions($year, $user->id);
                      if ($records->isNotEmpty()) {
-                         $source = 'preview'; // Preview for self
-                     } else {
-                         $records = collect();
-                         $source = 'none';
+                         return response()->json([
+                             'year' => $year,
+                             'source' => 'preview',
+                             'summary' => [
+                                 'totalPayout' => round($records->sum('totalAmount'), 2),
+                                 'eligibleCount' => $records->count(),
+                             ],
+                             'records' => $records,
+                         ]);
                      }
-                } else {
-                    $records = collect();
-                    $source = 'none';
-                }
-            }
-        } else {
-            $records = $conversions->map(function (LeaveCashConversion $conversion) {
-                $user = $conversion->user;
-                $position = $user?->position;
-
-                return [
-                    'id' => $conversion->id,
-                    'userId' => $user?->id,
-                    'employeeId' => $user?->employee_id ?? $user?->id,
-                    'name' => $user?->name ?? $this->formatUserName($user),
-                    'position' => $position?->name,
-                    'vacationDays' => (int) $conversion->vacation_days,
-                    'sickDays' => (int) $conversion->sick_days,
-                    'totalDays' => (int) $conversion->vacation_days + (int) $conversion->sick_days,
-                    'conversionRate' => (float) $conversion->conversion_rate,
-                    'totalAmount' => (float) $conversion->total_amount,
-                    'status' => $conversion->status,
-                    'processedAt' => optional($conversion->processed_at)->toIso8601String(),
-                    'paidAt' => optional($conversion->paid_at)->toIso8601String(),
-                    'details' => $conversion->details ?? [],
-                ];
-            })->values();
-            $payloads = collect();
-            $source = 'stored';
+                 }
+                 return response()->json([
+                     'year' => $year,
+                     'source' => 'none',
+                     'summary' => ['totalPayout' => 0, 'eligibleCount' => 0],
+                     'records' => [],
+                 ]);
+             } else {
+                 return response()->json([
+                     'year' => $year,
+                     'source' => 'stored',
+                     'summary' => [
+                         'totalPayout' => round($storedRecords->sum('totalAmount'), 2),
+                         'eligibleCount' => $storedRecords->count(),
+                     ],
+                     'records' => $storedRecords,
+                 ]);
+             }
         }
 
-        $totalPayout = round($records->sum(fn ($record) => $record['totalAmount']), 2);
-        $eligibleCount = $records->count();
+        // Admin/Manager View: Merge Stored + Preview
+        // 1. Compute all potential records
+        [$payloads, $previewRecords] = $this->computeConversions($year);
+        
+        // 2. Map stored records by userId
+        $storedMap = $storedRecords->keyBy('userId');
+        
+        // 3. Merge: Start with Preview, overlay Stored
+        $finalRecords = $previewRecords->map(function ($preview) use ($storedMap) {
+            $userId = $preview['userId'];
+            if ($storedMap->has($userId)) {
+                return $storedMap->get($userId);
+            }
+            return $preview;
+        });
+        
+        // 4. Add any Stored records that weren't in Preview (e.g. no longer eligible but has record)
+        $previewUserIds = $previewRecords->pluck('userId')->flip();
+        $extraStored = $storedRecords->filter(function ($record) use ($previewUserIds) {
+            return !$previewUserIds->has($record['userId']);
+        });
+        
+        $finalRecords = $finalRecords->merge($extraStored)->sortByDesc('totalAmount')->values();
 
         return response()->json([
             'year' => $year,
-            'source' => $source,
+            'source' => 'mixed',
             'summary' => [
-                'totalPayout' => $totalPayout,
-                'eligibleCount' => $eligibleCount,
+                'totalPayout' => round($finalRecords->sum('totalAmount'), 2),
+                'eligibleCount' => $finalRecords->count(),
             ],
-            'records' => $records,
+            'records' => $finalRecords,
         ]);
     }
 
@@ -105,8 +120,17 @@ class LeaveCashConversionController extends Controller
         $isSuperAdmin = $user->role === 'SUPER_ADMIN';
         $hasModule = $this->hasModule($user, 'leave_management');
         $isSelf = $request->input('scope') === 'self';
+        $targetUserId = $request->input('user_id');
 
-        $limitUserId = ($isSelf || (!$isSuperAdmin && !$hasModule)) ? $user->id : null;
+        $limitUserId = null;
+
+        if ($isSelf) {
+            $limitUserId = $user->id;
+        } elseif ($targetUserId && ($isSuperAdmin || $hasModule)) {
+            $limitUserId = $targetUserId;
+        } elseif (!$isSuperAdmin && !$hasModule) {
+            $limitUserId = $user->id;
+        }
 
         [$payloads, $records] = $this->computeConversions($year, $limitUserId);
 
@@ -208,50 +232,47 @@ class LeaveCashConversionController extends Controller
         $hasModule = $this->hasModule($user, 'leave_management');
         $isOwner = $conversion->user_id === $user->id;
 
-        if (!$isSuperAdmin && !$hasModule && !$isOwner) {
-            return response()->json(['message' => 'Unauthorized action.'], 403);
-        }
+        if ($isSuperAdmin) {
+            // Super Admin can perform any status change
+        } else {
+            // Non-Super Admin Restrictions
 
-        if (!$isSuperAdmin && !$hasModule && $isOwner) {
-             // Regular employee restrictions
-             if (!in_array($status, ['Pending', 'Submitted'])) {
-                 return response()->json(['message' => 'You can only submit or revert your request.'], 403);
-             }
-             // Can only change OWN status
-             // Pending -> Submitted
-             if ($conversion->status === 'Pending' && $status === 'Submitted') {
-                 // Allowed
-             }
-             // Submitted -> Pending
-             elseif ($conversion->status === 'Submitted' && $status === 'Pending') {
-                 // Allowed
-             }
-             else {
-                 return response()->json(['message' => 'Invalid status transition.'], 403);
-             }
-        }
-
-        if (!$isSuperAdmin && $hasModule && !$isOwner) {
-            // Assigned employees (not super admin) permissions...
-            // Kept from original logic
+            // 1. Strictly block setting status to 'Approved' or 'Declined'
+            // Unless reverting 'Paid' -> 'Approved' (if we allow that for assigned employees)
+            // But 'Declined' is strictly Super Admin.
+            // 'Approved' from 'Submitted'/'Pending' is strictly Super Admin.
             
+            if ($status === 'Declined') {
+                return response()->json(['message' => 'Only Super Admin can decline requests.'], 403);
+            }
+
+            if ($status === 'Approved' && $conversion->status !== 'Paid') {
+                return response()->json(['message' => 'Only Super Admin can approve requests.'], 403);
+            }
+
+            // 2. Check general authorization (Module access or Owner)
+            if (!$hasModule && !$isOwner) {
+                return response()->json(['message' => 'Unauthorized action.'], 403);
+            }
+
             $allowed = false;
 
-            // 1. Pending -> Submitted
-            if ($conversion->status === 'Pending' && $status === 'Submitted') {
+            // 3. Define allowed transitions
+            
+            // Pending <-> Submitted
+            if (($conversion->status === 'Pending' && $status === 'Submitted') ||
+                ($conversion->status === 'Submitted' && $status === 'Pending')) {
+                // Allowed for Owner and Assigned Employee
                 $allowed = true;
             }
-            // 2. Submitted -> Pending
-            elseif ($conversion->status === 'Submitted' && $status === 'Pending') {
-                $allowed = true;
-            }
-            // 3. Approved -> Paid
-            elseif ($conversion->status === 'Approved' && $status === 'Paid') {
-                $allowed = true;
-            }
-            // 4. Paid -> Approved (Revert payment)
-            elseif ($conversion->status === 'Paid' && $status === 'Approved') {
-                $allowed = true;
+            
+            // Approved <-> Paid
+            // Only for Assigned Employee (hasModule)
+            elseif (($conversion->status === 'Approved' && $status === 'Paid') ||
+                    ($conversion->status === 'Paid' && $status === 'Approved')) {
+                if ($hasModule) {
+                    $allowed = true;
+                }
             }
 
             if (!$allowed) {
@@ -322,8 +343,8 @@ class LeaveCashConversionController extends Controller
         }
 
         if (!$isSuperAdmin && $hasModule) {
-            if ($status !== 'Submitted' && $status !== 'Pending') {
-                return response()->json(['message' => 'You can only submit requests.'], 403);
+            if ($status !== 'Submitted' && $status !== 'Pending' && $status !== 'Paid') {
+                return response()->json(['message' => 'You can only submit or pay requests.'], 403);
             }
         }
 
@@ -339,14 +360,19 @@ class LeaveCashConversionController extends Controller
         } elseif ($status === 'Paid') {
             $updates['paid_by'] = $user->id;
             $updates['paid_at'] = Carbon::now();
-            $updates['processed_by'] = $user->id;
-            $updates['processed_at'] = Carbon::now();
+            // Ensure processed fields are set if missing (legacy/edge case)
+            // Ideally should be set during Approval
         } else { // Approved, Declined
             $updates['processed_by'] = $user->id;
             $updates['processed_at'] = Carbon::now();
         }
 
         $query = LeaveCashConversion::where('year', $year);
+
+        // Safety: When marking as Paid, only affect Approved records
+        if ($status === 'Paid') {
+            $query->where('status', 'Approved');
+        }
 
         if (!$isSuperAdmin && !$hasModule) {
             $query->where('user_id', $user->id);
@@ -356,8 +382,11 @@ class LeaveCashConversionController extends Controller
                  $query->where('status', 'Submitted');
             }
         }
-        elseif (!$isSuperAdmin && $hasModule && $status === 'Submitted') {
-             $query->where('status', 'Pending');
+        elseif (!$isSuperAdmin && $hasModule) {
+             if ($status === 'Submitted') {
+                 $query->where('status', 'Pending');
+             }
+             // For Paid, we already added the Approved filter above
         }
 
         $query->update($updates);
@@ -527,5 +556,28 @@ class LeaveCashConversionController extends Controller
         ]);
 
         return $parts ? implode(' ', $parts) : null;
+    }
+
+    private function transformConversion(LeaveCashConversion $conversion): array
+    {
+        $user = $conversion->user;
+        $position = $user?->position;
+
+        return [
+            'id' => $conversion->id,
+            'userId' => $user?->id,
+            'employeeId' => $user?->employee_id ?? $user?->id,
+            'name' => $user?->name ?? $this->formatUserName($user),
+            'position' => $position?->name,
+            'vacationDays' => (int) $conversion->vacation_days,
+            'sickDays' => (int) $conversion->sick_days,
+            'totalDays' => (int) $conversion->vacation_days + (int) $conversion->sick_days,
+            'conversionRate' => (float) $conversion->conversion_rate,
+            'totalAmount' => (float) $conversion->total_amount,
+            'status' => $conversion->status,
+            'processedAt' => optional($conversion->processed_at)->toIso8601String(),
+            'paidAt' => optional($conversion->paid_at)->toIso8601String(),
+            'details' => $conversion->details ?? [],
+        ];
     }
 }

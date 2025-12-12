@@ -1,18 +1,3 @@
-"""
-Employee ML Prediction API Service
-==================================
-
-Standalone FastAPI service for machine learning predictions.
-This service processes employee data received via JSON and returns
-predictions without accessing any external databases.
-
-Features:
-- Employee potential classification
-- Resignation risk prediction
-- Model training and management
-- Health checks and monitoring
-"""
-
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -31,11 +16,9 @@ from .models.schemas import (
 from .services.ml_predictor import MLPredictorService
 from .config import settings
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Employee ML Prediction API",
     description="Standalone ML API for employee analytics and predictions",
@@ -44,7 +27,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -53,7 +35,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize ML service
 ml_service = MLPredictorService()
 
 @app.on_event("startup")
@@ -106,14 +87,11 @@ async def predict_employees(request: PredictionRequest):
     try:
         logger.info(f"Received prediction request for {len(request.employees)} employees")
         
-        # Validate request
         if not request.employees:
             raise HTTPException(status_code=400, detail="No employee data provided")
         
-        # Generate predictions
         predictions = await ml_service.predict(request.employees)
         
-        # Prepare response
         response = PredictionResponse(
             success=True,
             data=predictions,
@@ -149,7 +127,6 @@ async def train_model(request: PredictionRequest, background_tasks: BackgroundTa
                 detail="Minimum 10 employee records required for training"
             )
         
-        # Start training in background
         background_tasks.add_task(ml_service.train_model, request.employees)
         
         return {

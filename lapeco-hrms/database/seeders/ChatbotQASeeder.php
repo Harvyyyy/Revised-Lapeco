@@ -16,7 +16,8 @@ class ChatbotQASeeder extends Seeder
             ],
             [
                 'question' => 'What positions are available?',
-                'answer' => "We are always looking for talented individuals! You can see the list of available positions like Software Engineer, Product Manager, and more in the 'Applying For' dropdown when you open the application form.",
+                'answer' => 'This answer is dynamically generated based on available positions.',
+                'dynamic_handler' => 'available_positions',
             ],
             [
                 'question' => 'How do I apply?',
@@ -70,7 +71,11 @@ class ChatbotQASeeder extends Seeder
         foreach ($recruitment as $item) {
             ChatbotQA::firstOrCreate(
                 ['type' => 'recruitment', 'question' => $item['question']],
-                ['answer' => $item['answer'], 'active' => true]
+                [
+                    'answer' => $item['answer'], 
+                    'active' => true,
+                    'dynamic_handler' => $item['dynamic_handler'] ?? null,
+                ]
             );
         }
 

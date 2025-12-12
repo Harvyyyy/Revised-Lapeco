@@ -13,7 +13,6 @@ class PositionController extends Controller
     use LogsActivity;
     public function index(Request $request)
     {
-        // Enhanced version for authenticated users (web interface)
         $positions = Position::all()->map(function ($pos) {
             $employeeCount = \App\Models\User::where('position_id', $pos->id)
                 ->whereNotIn('employment_status', ['terminated', 'resigned'])
@@ -38,7 +37,6 @@ class PositionController extends Controller
 
     public function publicIndex()
     {
-        // Public version - only name and description
         $positions = Position::select('id', 'name', 'description')->get();
         return response()->json($positions);
     }
@@ -69,7 +67,6 @@ class PositionController extends Controller
 
         $position = Position::create($validated);
         
-        // Log activity
         $this->logCreate('position', $position->id, $position->name);
         
         return response()->json($position, 201);
@@ -96,7 +93,6 @@ class PositionController extends Controller
 
         $position->update($validated);
         
-        // Log activity
         $this->logUpdate('position', $position->id, $position->name);
         
         return response()->json($position);
@@ -108,7 +104,6 @@ class PositionController extends Controller
         $positionId = $position->id;
         $position->delete();
         
-        // Log activity
         $this->logDelete('position', $positionId, $positionName);
         
         return response()->json(null, 204);
@@ -176,22 +171,21 @@ class PositionController extends Controller
                 'message' => 'Employee is not assigned to the specified position.',
             ], 422);
         }
-
-        // Check limits
+        
         $maxLeaders = $position->max_team_leaders ?? 1;
         $currentLeadersCount = User::where('position_id', $position->id)
             ->where('is_team_leader', true)
-            ->where('id', '!=', $employee->id) // Exclude self if already leader (though we are assigning)
+            ->where('id', '!=', $employee->id) 
             ->count();
 
         if ($maxLeaders == 1) {
-            // Default behavior: Single leader mode - Demote others
+            
             User::where('position_id', $position->id)
                 ->where('is_team_leader', true)
                 ->where('id', '!=', $employee->id)
                 ->update(['is_team_leader' => false]);
         } else {
-            // Multiple leaders mode
+            
             if ($currentLeadersCount >= $maxLeaders) {
                 return response()->json([
                     'message' => "Maximum number of team leaders ($maxLeaders) reached for this position. Please remove a team leader first.",
@@ -199,11 +193,7 @@ class PositionController extends Controller
             }
         }
 
-        $employee->is_team_leader = true;
-        // Ensure role is REGULAR_EMPLOYEE if it was something else (unless SUPER_ADMIN?)
-        // Actually, we agreed to keep role as is but use flag.
-        // But usually we want to make sure they are not just a regular employee in role name if we were using role column.
-        // Since we migrated to flag, we just set the flag.
+        $employee->is_team_leader = true;  
         
         $employee->save();
 
@@ -221,7 +211,7 @@ class PositionController extends Controller
             'employee' => [
                 'id' => $employee->id,
                 'name' => $employee->name,
-                'role' => 'TEAM_LEADER', // For display consistency
+                'role' => 'TEAM_LEADER', 
                 'isTeamLeader' => true,
                 'position_id' => $employee->position_id,
             ],
