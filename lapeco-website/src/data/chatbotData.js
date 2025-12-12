@@ -1,13 +1,8 @@
-﻿export const chatbotData = [
+export const chatbotData = [
   {
     id: 1,
     question: "What is LAPECO?",
     answer: "LAPECO, or Laguna Packaging Equipment Corp., specializes in high-quality manufacturing and packaging solutions. We partner with businesses to bring their ideas to life with precision and efficiency."
-  },
-  {
-    id: 2,
-    question: "What positions are available?",
-    answer: "We are always looking for talented individuals! You can see the list of available positions like Software Engineer, Product Manager, and more in the 'Applying For' dropdown when you open the application form."
   },
   {
     id: 3,
