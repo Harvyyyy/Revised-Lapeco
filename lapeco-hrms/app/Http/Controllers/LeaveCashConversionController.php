@@ -446,8 +446,7 @@ class LeaveCashConversionController extends Controller
             $credits = $leaveCredits->get($userId, collect());
 
             $vacationRemaining = $this->remainingCreditsFor($credits, 'Vacation Leave');
-            $sickRemaining = $this->remainingCreditsFor($credits, 'Sick Leave');
-            $totalDays = $vacationRemaining + $sickRemaining;
+            $totalDays = $vacationRemaining;
 
             if ($totalDays <= 0) {
                 continue;
@@ -460,8 +459,7 @@ class LeaveCashConversionController extends Controller
 
             $conversionRate = round($dailyRate, 2);
             $vacationAmount = round($vacationRemaining * $conversionRate, 2);
-            $sickAmount = round($sickRemaining * $conversionRate, 2);
-            $totalAmount = round($vacationAmount + $sickAmount, 2);
+            $totalAmount = round($vacationAmount, 2);
 
             if ($totalAmount <= 0) {
                 continue;
@@ -472,10 +470,6 @@ class LeaveCashConversionController extends Controller
                     'days' => $vacationRemaining,
                     'amount' => $vacationAmount,
                 ],
-                'sick' => [
-                    'days' => $sickRemaining,
-                    'amount' => $sickAmount,
-                ],
                 'total_days' => $totalDays,
             ];
 
@@ -483,7 +477,6 @@ class LeaveCashConversionController extends Controller
                 'user_id' => $user->id,
                 'year' => $year,
                 'vacation_days' => $vacationRemaining,
-                'sick_days' => $sickRemaining,
                 'conversion_rate' => $conversionRate,
                 'total_amount' => $totalAmount,
                 'details' => $details,
@@ -498,7 +491,6 @@ class LeaveCashConversionController extends Controller
                 'name' => $user->name ?? $this->formatUserName($user),
                 'position' => optional($user->position)->name,
                 'vacationDays' => $vacationRemaining,
-                'sickDays' => $sickRemaining,
                 'totalDays' => $totalDays,
                 'conversionRate' => $conversionRate,
                 'totalAmount' => $totalAmount,

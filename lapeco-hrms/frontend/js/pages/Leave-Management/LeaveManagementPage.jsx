@@ -689,7 +689,6 @@ const LeaveManagementPage = () => {
                             <th className="sortable" style={{ width: '12%' }} onClick={() => requestCashSort('employeeId')}>Employee ID {cashSortIcon('employeeId')}</th>
                             <th className="sortable" style={{ width: '20%' }} onClick={() => requestCashSort('name')}>Employee Name {cashSortIcon('name')}</th>
                             <th className="text-center sortable" style={{ width: '10%' }} onClick={() => requestCashSort('vacationDays')}>Vacation Days {cashSortIcon('vacationDays')}</th>
-                            <th className="text-center sortable" style={{ width: '10%' }} onClick={() => requestCashSort('sickDays')}>Sick Days {cashSortIcon('sickDays')}</th>
                             <th className="text-end sortable" style={{ width: '12%' }} onClick={() => requestCashSort('conversionRate')}>Daily Rate {cashSortIcon('conversionRate')}</th>
                             <th className="text-end sortable" style={{ width: '12%' }} onClick={() => requestCashSort('totalAmount')}>Total Amount {cashSortIcon('totalAmount')}</th>
                             <th className="text-center" style={{ width: '10%' }}>Status</th>
@@ -706,7 +705,6 @@ const LeaveManagementPage = () => {
                                 <div className="text-muted" style={{ fontSize: '0.8rem' }}>{record.position || '–'}</div>
                               </td>
                               <td className="text-center fw-semibold">{record.vacationDays}</td>
-                              <td className="text-center fw-semibold">{record.sickDays}</td>
                               <td className="text-end">₱{Number(record.conversionRate || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                               <td className="text-end text-success fw-bold">₱{Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                               <td className="text-center">
