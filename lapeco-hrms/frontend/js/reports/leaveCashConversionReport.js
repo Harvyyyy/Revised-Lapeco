@@ -49,12 +49,11 @@ export const generateLeaveCashConversionReport = async (layoutManager, dataSourc
     `Total Amount Paid: ${formatCurrency(totalPaid)}`;
 
   // --- 4. TABLE DATA ---
-  const tableHead = ["Name", "Position", "VL Conv.", "SL Conv.", "Total Amount", "Status", "Date"];
+  const tableHead = ["Name", "Position", "VL Conv.", "Total Amount", "Status", "Date"];
   const tableBody = filteredRecords.map(r => [
     r.name, 
     r.position, 
     r.vacationDays, 
-    r.sickDays, 
     formatCurrency(r.totalAmount), 
     r.status,
     r.processedAt ? formatDate(new Date(r.processedAt), 'short') : '-'

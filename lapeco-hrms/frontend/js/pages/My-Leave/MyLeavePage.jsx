@@ -578,15 +578,10 @@ const MyLeavePage = () => {
                       <div className="card-body">
                         <h6 className="card-title text-muted mb-3">CONVERSION DETAILS</h6>
                         <div className="row mb-3">
-                          <div className="col-6">
+                          <div className="col-12">
                              <small className="text-muted d-block">Vacation Leave</small>
                              <span className="fs-5 fw-bold">{cashRecord.vacationDays} days</span>
                              <div className="text-success small">₱ {cashRecord.details?.vacation?.amount?.toLocaleString()}</div>
-                          </div>
-                          <div className="col-6">
-                             <small className="text-muted d-block">Sick Leave</small>
-                             <span className="fs-5 fw-bold">{cashRecord.sickDays} days</span>
-                             <div className="text-success small">₱ {cashRecord.details?.sick?.amount?.toLocaleString()}</div>
                           </div>
                         </div>
                         <hr />
