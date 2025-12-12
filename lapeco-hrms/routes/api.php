@@ -75,7 +75,9 @@ Route::middleware('auth:sanctum')->get('/applicants/{applicant}/resume/view', [A
 Route::middleware('auth:sanctum')->get('/applicants/{applicant}/resume/download', [ApplicantController::class, 'downloadResume']);
 // Applicant statutory documents (authenticated)
 Route::middleware('auth:sanctum')->get('/applicants/{applicant}/documents', [ApplicantController::class, 'listDocuments']);
+Route::middleware('auth:sanctum')->get('/applicants/{applicant}/documents/view', [ApplicantController::class, 'viewDocumentByQuery']);
 Route::middleware('auth:sanctum')->get('/applicants/{applicant}/documents/view/{filename}', [ApplicantController::class, 'viewDocument']);
+Route::middleware('auth:sanctum')->get('/applicants/{applicant}/documents/download', [ApplicantController::class, 'downloadDocumentByQuery']);
 Route::middleware('auth:sanctum')->get('/applicants/{applicant}/documents/download/{filename}', [ApplicantController::class, 'downloadDocument']);
 
 Route::get('/email/verify/{id}/{hash}', [ProfileController::class, 'verifyEmail'])

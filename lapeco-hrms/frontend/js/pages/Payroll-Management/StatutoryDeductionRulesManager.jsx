@@ -352,11 +352,33 @@ const StatutoryDeductionRulesManager = () => {
   };
 
   const executeSaveRule = async () => {
+    setError(null);
+    setShowConfirmModal(false);
+
+    let formulaPayload = null;
+    if (formData.rule_type === 'custom_formula') {
+      const trimmedFormula = (formData.formula || '').trim();
+
+      if (!trimmedFormula) {
+        setError('Formula is required when using a custom formula rule.');
+        return;
+      }
+
+      try {
+        JSON.parse(trimmedFormula);
+      } catch (parseError) {
+        setError('Formula must be valid JSON (e.g. {"employee_formula": "salary * 0.05"}).');
+        return;
+      }
+
+      formulaPayload = trimmedFormula;
+    }
+
     try {
       setLoading(true);
       const payload = {
         ...formData,
-        formula: formData.formula ? JSON.parse(formData.formula) : null,
+        formula: formulaPayload,
       };
 
       if (selectedRule) {
@@ -370,7 +392,10 @@ const StatutoryDeductionRulesManager = () => {
       setError(null);
       setShowConfirmModal(false);
     } catch (err) {
-      setError(err.message);
+      const apiError = err.response?.data?.errors
+        ? Object.values(err.response.data.errors).flat()[0]
+        : err.response?.data?.message;
+      setError(apiError || err.message);
     } finally {
       setLoading(false);
     }
@@ -802,7 +827,7 @@ const StatutoryDeductionRulesManager = () => {
                                   step="0.01"
                                   className="form-control"
                                   placeholder="0.00"
-                                  readOnly={formData.deduction_type === 'SSS' || (formData.deduction_type === 'Tax' && index === 0)}
+                                  readOnly={formData.deduction_type === 'Tax' && index === 0}
                                 />
                               </div>
                             </div>
@@ -816,7 +841,6 @@ const StatutoryDeductionRulesManager = () => {
                                   step="0.01"
                                   className="form-control"
                                   placeholder="Unlimited"
-                                  readOnly={formData.deduction_type === 'SSS'}
                                 />
                               </div>
                             </div>
@@ -832,7 +856,6 @@ const StatutoryDeductionRulesManager = () => {
                                     step="0.01"
                                     className="form-control"
                                     placeholder="0.00"
-                                    readOnly={true}
                                   />
                                 </div>
                               </div>

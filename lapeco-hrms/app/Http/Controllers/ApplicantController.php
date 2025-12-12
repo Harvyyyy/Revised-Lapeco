@@ -586,6 +586,17 @@ class ApplicantController extends Controller
         return response()->json($documents);
     }
 
+    public function viewDocumentByQuery(Request $request, Applicant $applicant)
+    {
+        $filename = $request->query('filename');
+
+        if (!is_string($filename) || trim($filename) === '') {
+            return response()->json(['message' => 'Filename is required'], 422);
+        }
+
+        return $this->viewDocument($request, $applicant, $filename);
+    }
+
     public function viewDocument(Request $request, Applicant $applicant, string $filename)
     {
         if (!$request->user()) {
@@ -604,6 +615,17 @@ class ApplicantController extends Controller
             'Content-Type' => $mimeType,
             'Content-Disposition' => 'inline; filename="' . $safe . '"',
         ]);
+    }
+
+    public function downloadDocumentByQuery(Request $request, Applicant $applicant)
+    {
+        $filename = $request->query('filename');
+
+        if (!is_string($filename) || trim($filename) === '') {
+            return response()->json(['message' => 'Filename is required'], 422);
+        }
+
+        return $this->downloadDocument($request, $applicant, $filename);
     }
 
     public function downloadDocument(Request $request, Applicant $applicant, string $filename)
